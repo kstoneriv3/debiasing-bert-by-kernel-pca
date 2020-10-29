@@ -6,7 +6,7 @@ This repository contains the code for the project "Debiasing BERT by Kernel PCA"
 
 The structure of the directory is as follows.
 
-```bash
+```
 debiasing-bert-by-kernel-pca
 ├── __init__.py
 ├── notebooks
