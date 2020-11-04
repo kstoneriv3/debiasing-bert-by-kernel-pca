@@ -4,6 +4,25 @@ import csv
 import re
 
 
+class TwoWayDict(dict):
+    def __setitem__(self, key, value):
+        # Remove any previous connections with these values
+        if key in self:
+            del self[key]
+        if value in self:
+            del self[value]
+        dict.__setitem__(self, key, value)
+        dict.__setitem__(self, value, key)
+
+    def __delitem__(self, key):
+        dict.__delitem__(self, self[key])
+        dict.__delitem__(self, key)
+
+    def __len__(self):
+        """Returns the number of connections"""
+        return dict.__len__(self) // 2
+
+
 # TODO: change to train/test/dev splits as in the given dataset
 
 class GenericDataLoader:
@@ -55,6 +74,17 @@ class TokenizeDataset(dataset.Dataset):
         self.tokenizer = tokenizer
         self.data_path = data_path
         self.data = self._read_tsv()
+        all_pats_male = ["he", "himself", "boy", "man", "father", "guy", "male", "his", "himself", "john"]
+        all_pats_female = ["she", "herself", "girl", "woman", "mother", "gal", "female", "her", "herself", "mary"]
+        self.translation_dict = TwoWayDict(
+            {"he": "she", "himself": "herself", "boy": "girl", "man": "woman", "father": "mother", "guy": "gal",
+             "male": "female", "his": "her", "himself": "herself", "john": "mary"})
+
+        # TODO: problem with he at the beginning of sentence
+
+        # print(re.findall("\d:\d\d",text))
+        self.pattern_male = re.compile(r'|'.join(map(r'(?:\b{}\b)'.format, all_pats_male)))
+        self.pattern_female = re.compile(r'|'.join(map(r'(?:\b{}\b)'.format, all_pats_female)))
 
     def _read_tsv(self):
         tsv_file = open(self.data_path, encoding="utf8")
@@ -69,14 +99,23 @@ class TokenizeDataset(dataset.Dataset):
         return len(self.data)
 
     def find_gender_in_text(self, line):
-        all_pats = ["he", "himself", "boy", "man", "father", "guy", "male", "his", "himself", "John"]
-        # TODO: problem with he at the beginning of sentence
+        found_male = re.findall(self.pattern_male, line)
+        found_female = re.findall(self.pattern_female, line)
+        if found_male:
+            print("male", line, found_male)  # samples are not really convincing yet
+        if found_female:
+            print("female", line, found_female)
 
-        # print(re.findall("\d:\d\d",text))
-        pattern = re.compile(r'|'.join(map(r'(?:\s{}\s)'.format, all_pats)))
-        found = re.findall(pattern, line)
-        if found:
-            print(line, found)  # samples are not really convincing yet
+    def replace_gender_in_text(self,line):
+        found_male = re.findall(self.pattern_male, line)
+        found_female = re.findall(self.pattern_female, line)
+        if found_male:
+            print(line)
+            for el in found_male:
+                line = re.sub(r'(?:\b{}\b)'.format(el), self.translation_dict[el], line)
+            print(line)
+        # if found_female:
+        #     print("female", line, found_female)
 
     def tokenize_text(self, line):
         tokenized_sentence = self.tokenizer(
@@ -97,11 +136,11 @@ class CoLAData(TokenizeDataset):
         super(CoLAData, self).__init__(**kwargs)
 
     def __getitem__(self, item):
-        self.find_gender_in_text(self.data[item][-1])
+        self.replace_gender_in_text(self.data[item][-1].lower())
 
         return {
             "label": self.data[item][1],
-            "text": self.tokenize_text(self.data[item][-1]),
+            "text": self.tokenize_text(self.data[item][-1].lower()),
         }
 
 
@@ -110,13 +149,13 @@ class QNLData(TokenizeDataset):
         super(QNLData, self).__init__(**kwargs)
 
     def __getitem__(self, item):
-        self.find_gender_in_text(self.data[item][1])
-        self.find_gender_in_text(self.data[item][2])
+        self.replace_gender_in_text(self.data[item][1].lower())
+        self.replace_gender_in_text(self.data[item][2].lower())
 
         return {
             "label": self.data[item][-1],
-            "text": self.tokenize_text(self.data[item][1]),
-            "answer": self.tokenize_text(self.data[item][2]),
+            "text": self.tokenize_text(self.data[item][1].lower()),
+            "answer": self.tokenize_text(self.data[item][2].lower()),
         }
 
 
@@ -125,9 +164,9 @@ class SST2Data(TokenizeDataset):
         super(SST2Data, self).__init__(**kwargs)
 
     def __getitem__(self, item):
-        self.find_gender_in_text(self.data[item][0])
+        self.replace_gender_in_text(self.data[item][0].lower())
 
         return {
             "label": self.data[item][-1],
-            "text": self.tokenize_text(self.data[item][0]),
+            "text": self.tokenize_text(self.data[item][0].lower()),
         }
