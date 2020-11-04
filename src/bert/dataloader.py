@@ -1,9 +1,7 @@
 from torch.utils.data import DataLoader, SubsetRandomSampler, dataset
 import numpy as np
 import csv
-import sys
-from transformers.data.processors import glue
-from transformers import BertTokenizer
+import re
 
 
 # TODO: change to train/test/dev splits as in the given dataset
@@ -78,7 +76,7 @@ class TokenizeDataset(dataset.Dataset):
         pattern = re.compile(r'|'.join(map(r'(?:\s{}\s)'.format, all_pats)))
         found = re.findall(pattern, line)
         if found:
-            print(line, found) # samples are not really convincing yet 
+            print(line, found)  # samples are not really convincing yet
 
     def tokenize_text(self, line):
         tokenized_sentence = self.tokenizer(
@@ -96,8 +94,6 @@ class TokenizeDataset(dataset.Dataset):
 
         return {
             "label": self.data[item][-1],
-            "text": self.tokenize_text(self.data[item][1:3]),
+            "question": self.tokenize_text(self.data[item][1]),
+            "answer": self.tokenize_text(self.data[item][2]),
         }
-
-
-import re
