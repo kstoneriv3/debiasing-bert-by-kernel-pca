@@ -70,6 +70,16 @@ class TokenizeDataset(dataset.Dataset):
     def __len__(self):
         return len(self.data)
 
+    def find_gender_in_text(self, line):
+        all_pats = ["he", "himself", "boy", "man", "father", "guy", "male", "his", "himself", "John"]
+        # TODO: problem with he at the beginning of sentence
+
+        # print(re.findall("\d:\d\d",text))
+        pattern = re.compile(r'|'.join(map(r'(?:\s{}\s)'.format, all_pats)))
+        found = re.findall(pattern, line)
+        if found:
+            print(line, found) # samples are not really convincing yet 
+
     def tokenize_text(self, line):
         tokenized_sentence = self.tokenizer(
             line,
@@ -81,8 +91,13 @@ class TokenizeDataset(dataset.Dataset):
         return tokenized_sentence
 
     def __getitem__(self, item):
+        self.find_gender_in_text(self.data[item][1])
+        self.find_gender_in_text(self.data[item][2])
+
         return {
             "label": self.data[item][-1],
             "text": self.tokenize_text(self.data[item][1:3]),
         }
 
+
+import re

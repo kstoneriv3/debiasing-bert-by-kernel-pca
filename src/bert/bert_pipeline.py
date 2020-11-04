@@ -12,8 +12,7 @@ def main_run():
                                                   "/QNLI/dev.tsv")
     data_loader = GenericDataLoader(dataset,validation_split=0,batch_size=8)
     for el in data_loader.train_loader:
-        print(el)
-
+        print("")
 
 if __name__ == "__main__":
     main_run()
