@@ -53,13 +53,13 @@ class GenericDataLoader:
 class TokenizeDataset(dataset.Dataset):
     def __init__(self, tokenizer, data_path):
         self.tokenizer = tokenizer
-
         self.data_path = data_path
         self.data = self._read_tsv()
 
     def _read_tsv(self):
         tsv_file = open(self.data_path, encoding="utf8")
         tsv_reader = csv.reader(tsv_file, delimiter="\t")
+        tsv_reader.__next__()
         lines = []
         for line in tsv_reader:
             lines.append(line)
@@ -89,11 +89,45 @@ class TokenizeDataset(dataset.Dataset):
         return tokenized_sentence
 
     def __getitem__(self, item):
+        raise NotImplementedError
+
+
+class CoLAData(TokenizeDataset):
+    def __init__(self, **kwargs):
+        super(CoLAData, self).__init__(**kwargs)
+
+    def __getitem__(self, item):
+        self.find_gender_in_text(self.data[item][-1])
+
+        return {
+            "label": self.data[item][1],
+            "text": self.tokenize_text(self.data[item][-1]),
+        }
+
+
+class QNLData(TokenizeDataset):
+    def __init__(self, **kwargs):
+        super(QNLData, self).__init__(**kwargs)
+
+    def __getitem__(self, item):
         self.find_gender_in_text(self.data[item][1])
         self.find_gender_in_text(self.data[item][2])
 
         return {
             "label": self.data[item][-1],
-            "question": self.tokenize_text(self.data[item][1]),
+            "text": self.tokenize_text(self.data[item][1]),
             "answer": self.tokenize_text(self.data[item][2]),
+        }
+
+
+class SST2Data(TokenizeDataset):
+    def __init__(self, **kwargs):
+        super(SST2Data, self).__init__(**kwargs)
+
+    def __getitem__(self, item):
+        self.find_gender_in_text(self.data[item][0])
+
+        return {
+            "label": self.data[item][-1],
+            "text": self.tokenize_text(self.data[item][0]),
         }
