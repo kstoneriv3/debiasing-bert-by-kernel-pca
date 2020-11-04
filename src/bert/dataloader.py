@@ -5,6 +5,11 @@ import re
 
 
 class TwoWayDict(dict):
+    def __init__(self,input_dict,**kwargs):
+        super().__init__(**kwargs)
+        for key, value in input_dict.items():
+            self.__setitem__(key,value)
+
     def __setitem__(self, key, value):
         # Remove any previous connections with these values
         if key in self:
@@ -107,15 +112,22 @@ class TokenizeDataset(dataset.Dataset):
             print("female", line, found_female)
 
     def replace_gender_in_text(self,line):
+        male_version = line
+        female_version = line
+
         found_male = re.findall(self.pattern_male, line)
         found_female = re.findall(self.pattern_female, line)
         if found_male:
-            print(line)
+            print(female_version)
             for el in found_male:
-                line = re.sub(r'(?:\b{}\b)'.format(el), self.translation_dict[el], line)
-            print(line)
-        # if found_female:
-        #     print("female", line, found_female)
+                female_version = re.sub(r'(?:\b{}\b)'.format(el), self.translation_dict[el], female_version)
+            print(female_version)
+        if found_female:
+            print(male_version)
+            for el in found_female:
+                male_version = re.sub(r'(?:\b{}\b)'.format(el), self.translation_dict[el], male_version)
+            print(male_version)
+        return line, male_version, female_version
 
     def tokenize_text(self, line):
         tokenized_sentence = self.tokenizer(
@@ -136,7 +148,7 @@ class CoLAData(TokenizeDataset):
         super(CoLAData, self).__init__(**kwargs)
 
     def __getitem__(self, item):
-        self.replace_gender_in_text(self.data[item][-1].lower())
+        original, male, female = self.replace_gender_in_text(self.data[item][-1].lower())
 
         return {
             "label": self.data[item][1],
