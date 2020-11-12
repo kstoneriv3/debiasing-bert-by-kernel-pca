@@ -83,15 +83,20 @@ class TokenizeDataset(dataset.Dataset):
         self.data = self._read_tsv()
         all_pats_male = ["he", "himself", "boy", "man", "father", "guy", "male", "his", "himself", "john"]
         all_pats_female = ["she", "herself", "girl", "woman", "mother", "gal", "female", "her", "herself", "mary"]
-        self.translation_dict = TwoWayDict(
-            {"he": "she", "himself": "herself", "boy": "girl", "man": "woman", "father": "mother", "guy": "gal",
-             "male": "female", "his": "her", "himself": "herself", "john": "mary"})
+        self.translation_dict = TwoWayDict(dict(zip(all_pats_male, all_pats_female)))
+        all_pats_christ = ["christian", "christians", "bible", "church", "imam"]
+        all_pats_muslim = ["muslim", "muslims", "quran", "mosque", "priest"]
+        all_pats_jew = ["jewish", "jews", "torah", "synagogue", "rabbi"]
+        self.christ_jew = TwoWayDict(dict(zip(all_pats_christ, all_pats_jew)))
+        self.christ_muslim = TwoWayDict(dict(zip(all_pats_christ, all_pats_muslim)))
+        self.muslim_jew = TwoWayDict(dict(zip(all_pats_jew, all_pats_muslim)))
 
-        # TODO: problem with he at the beginning of sentence
-
-        # print(re.findall("\d:\d\d",text))
         self.pattern_male = re.compile(r'|'.join(map(r'(?:\b{}\b)'.format, all_pats_male)))
         self.pattern_female = re.compile(r'|'.join(map(r'(?:\b{}\b)'.format, all_pats_female)))
+
+        self.pattern_christ = re.compile(r'|'.join(map(r'(?:\b{}\b)'.format, all_pats_christ)))
+        self.pattern_muslim = re.compile(r'|'.join(map(r'(?:\b{}\b)'.format, all_pats_muslim)))
+        self.pattern_jew = re.compile(r'|'.join(map(r'(?:\b{}\b)'.format, all_pats_jew)))
 
     def _read_tsv(self):
         tsv_file = open(self.data_path, encoding="utf8")
@@ -133,6 +138,39 @@ class TokenizeDataset(dataset.Dataset):
             return line, male_version, female_version, 0
         else:
             return line, male_version, female_version, 1
+
+    def replace_religion_in_text(self, line):
+        christian_version = line
+        muslim_version = line
+        jewish_version = line
+
+        found_christ = re.findall(self.pattern_christ, line)
+        found_muslim = re.findall(self.pattern_muslim, line)
+        found_jew = re.findall(self.pattern_jew, line)
+
+        if found_christ:
+            # print(female_version)
+            for el in found_christ:
+                muslim_version = re.sub(r'(?:\b{}\b)'.format(el), self.christ_muslim[el], muslim_version)
+                jewish_version = re.sub(r'(?:\b{}\b)'.format(el), self.christ_jew[el], jewish_version)
+
+            # print(female_version)
+        if found_jew:
+            # print(female_version)
+            for el in found_jew:
+                muslim_version = re.sub(r'(?:\b{}\b)'.format(el), self.muslim_jew[el], muslim_version)
+                christian_version = re.sub(r'(?:\b{}\b)'.format(el), self.christ_jew[el], christian_version)
+            # print(female_version)
+        if found_muslim:
+            # print(male_version)
+            for el in found_muslim:
+                jewish_version = re.sub(r'(?:\b{}\b)'.format(el), self.muslim_jew[el], jewish_version)
+                christian_version = re.sub(r'(?:\b{}\b)'.format(el), self.christ_muslim[el], christian_version)
+                # print(male_version)
+        if (not found_christ) and (not found_jew) and (not found_muslim):
+            return line, christian_version, muslim_version, jewish_version, 0
+        else:
+            return line, christian_version, muslim_version, jewish_version, 1
 
     def tokenize_text(self, line):
         tokenized_sentence = self.tokenizer(
@@ -181,10 +219,10 @@ class QNLData(TokenizeDataset):
         # self.replace_gender_in_text(self.data[item][2].lower())
 
         return {
-                   "label": self.data[item][-1],
-                   "male": self.tokenize_text(male),
-                   "female": self.tokenize_text(female),
-               }
+            "label": self.data[item][-1],
+            "male": self.tokenize_text(male),
+            "female": self.tokenize_text(female),
+        }
 
 
 class SST2Data(TokenizeDataset):
@@ -195,10 +233,73 @@ class SST2Data(TokenizeDataset):
         self.item_current = max(self.item_current, item)
         indicator = 0
         while indicator == 0:
-            original, male, female, indicator = self.replace_gender_in_text(self.data[self.item_current][0].lower())
+            original, male, female, indicator = self.replace_religion_in_text(self.data[self.item_current][0].lower())
             self.item_current += 1
         return {
             "label": self.data[item][-1],
             "male": self.tokenize_text(male),
             "female": self.tokenize_text(female)
+        }
+
+
+class CoLADataReligion(TokenizeDataset):
+    def __init__(self, **kwargs):
+        super(CoLADataReligion, self).__init__(**kwargs)
+
+    def __getitem__(self, item):
+        self.item_current = max(self.item_current, item)
+        indicator = 0
+        while indicator == 0:
+            original, christ, muslim, jew, indicator = self.replace_religion_in_text(
+                self.data[self.item_current][-1].lower())
+            self.item_current += 1
+        print(christ, muslim)
+        return {
+            "label": self.data[item][1],
+            "christ": self.tokenize_text(christ),
+            "jew": self.tokenize_text(jew),
+            "muslim": self.tokenize_text(muslim),
+        }
+
+
+class SST2DataReligion(TokenizeDataset):
+    def __init__(self, **kwargs):
+        super(SST2DataReligion, self).__init__(**kwargs)
+
+    def __getitem__(self, item):
+        self.item_current = max(self.item_current, item)
+        indicator = 0
+        while indicator == 0:
+            original, christ, jew, muslim, indicator = self.replace_religion_in_text(
+                self.data[self.item_current][0].lower())
+            self.item_current += 1
+        print(christ, jew)
+        return {
+            "label": self.data[item][1],
+            "christ": self.tokenize_text(christ),
+            "jew": self.tokenize_text(jew),
+            "muslim": self.tokenize_text(muslim),
+        }
+
+
+class QNLDataReligion(TokenizeDataset):
+    def __init__(self, **kwargs):
+        super(QNLDataReligion, self).__init__(**kwargs)
+
+    def __getitem__(self, item):
+        self.item_current = max(self.item_current, item)
+        indicator = 0
+        while indicator == 0:
+            original, christ, muslim, jew, indicator = self.replace_religion_in_text(self.data[self.item_current][1].lower())
+            self.item_current += 1
+
+        # TODO: how to handle answer
+        # self.replace_gender_in_text(self.data[item][2].lower())
+        print(christ, jew)
+
+        return {
+            "label": self.data[item][-1],
+            "christ": self.tokenize_text(christ),
+            "muslim": self.tokenize_text(muslim),
+            "jew": self.tokenize_text(jew),
         }
