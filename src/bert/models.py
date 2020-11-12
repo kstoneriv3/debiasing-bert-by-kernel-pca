@@ -9,6 +9,7 @@ class EmbeddingModel(nn.Module):
         self.batch_size = batch_size
 
         self.embedding_model = BertModel.from_pretrained("bert-base-uncased")
+        self.embedding_model.eval()
 
     def forward(self, input_ids, attention_mask, token_type_ids):
         return self.embedding_model.forward(input_ids=input_ids.reshape(self.batch_size, -1),
