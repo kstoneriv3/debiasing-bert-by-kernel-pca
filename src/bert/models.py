@@ -13,4 +13,4 @@ class EmbeddingModel(nn.Module):
     def forward(self, input_ids, attention_mask, token_type_ids):
         return self.embedding_model.forward(input_ids=input_ids.reshape(self.batch_size, -1),
                                             attention_mask=attention_mask.reshape(self.batch_size, -1),
-                                            token_type_ids=attention_mask.reshape(self.batch_size, -1))
+                                            token_type_ids=token_type_ids.reshape(self.batch_size, -1))

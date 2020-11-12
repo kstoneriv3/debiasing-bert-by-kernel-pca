@@ -10,13 +10,15 @@ def main_run():
     args = parser.parse_args()
 
     tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
-    dataset = CoLAData(tokenizer=tokenizer,
-                      data_path="D:/Dokumente/Universitaet/Statistik/ML/NLP_new/debiasing-sent/data"
-                                "/CoLA/dev.tsv")
-    data_loader = GenericDataLoader(dataset, validation_split=0, batch_size=8)
+    dataset = SST2Data(tokenizer=tokenizer,
+                       data_path="D:/Dokumente/Universitaet/Statistik/ML/NLP_new/debiasing-sent/data"
+                                 "/SST-2/dev.tsv")
+    data_loader = GenericDataLoader(dataset, validation_split=0.2, batch_size=8)
     model = EmbeddingModel("bert-base-uncased", batch_size=8)
     for el in data_loader.train_loader:
-        output = model.forward(**el["text"])
+        male_embedding = model.forward(**el["male"])
+        female_embedding = model.forward(**el["female"])
+
 
 
 if __name__ == "__main__":

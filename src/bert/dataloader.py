@@ -1,14 +1,14 @@
-from torch.utils.data import DataLoader, SubsetRandomSampler, dataset
+from torch.utils.data import DataLoader, SubsetRandomSampler, dataset, SequentialSampler
 import numpy as np
 import csv
 import re
 
 
 class TwoWayDict(dict):
-    def __init__(self,input_dict,**kwargs):
+    def __init__(self, input_dict, **kwargs):
         super().__init__(**kwargs)
         for key, value in input_dict.items():
-            self.__setitem__(key,value)
+            self.__setitem__(key, value)
 
     def __setitem__(self, key, value):
         # Remove any previous connections with these values
@@ -34,7 +34,7 @@ class GenericDataLoader:
     def __init__(self, dataset,
                  batch_size=1,
                  validation_split=0,
-                 shuffle_for_split=True,
+                 shuffle_for_split=False,
                  random_seed_split=0):
         """
         Initializes the dataloader.
@@ -52,12 +52,12 @@ class GenericDataLoader:
         # case no validation set
         if validation_split == 0:
             self.train_loader = DataLoader(
-                self.dataset, batch_size, shuffle=True, drop_last=True)
+                self.dataset, batch_size, shuffle=False, drop_last=True)
 
         # case validation set only (testset)
         if validation_split == 1:
             self.val_loader = DataLoader(
-                self.dataset, batch_size, shuffle=True, drop_last=True)
+                self.dataset, batch_size, shuffle=False, drop_last=True)
 
         # case training/validation set split
         else:
@@ -66,8 +66,8 @@ class GenericDataLoader:
                 np.random.seed(random_seed_split)
                 indices = np.random.permutation(indices)
             split = int(np.floor(validation_split * len(dataset)))
-            train_sampler = SubsetRandomSampler(indices[split:])
-            val_sampler = SubsetRandomSampler(indices[:split])
+            train_sampler = SequentialSampler(indices[split:])
+            val_sampler = SequentialSampler(indices[:split])
             self.train_loader = DataLoader(
                 self.dataset, batch_size, sampler=train_sampler, drop_last=True)
             self.val_loader = DataLoader(
@@ -78,6 +78,8 @@ class TokenizeDataset(dataset.Dataset):
     def __init__(self, tokenizer, data_path):
         self.tokenizer = tokenizer
         self.data_path = data_path
+        self.item_current = 0
+        self.end = 0
         self.data = self._read_tsv()
         all_pats_male = ["he", "himself", "boy", "man", "father", "guy", "male", "his", "himself", "john"]
         all_pats_female = ["she", "herself", "girl", "woman", "mother", "gal", "female", "her", "herself", "mary"]
@@ -111,23 +113,26 @@ class TokenizeDataset(dataset.Dataset):
         if found_female:
             print("female", line, found_female)
 
-    def replace_gender_in_text(self,line):
+    def replace_gender_in_text(self, line):
         male_version = line
         female_version = line
 
         found_male = re.findall(self.pattern_male, line)
         found_female = re.findall(self.pattern_female, line)
         if found_male:
-            print(female_version)
+            # print(female_version)
             for el in found_male:
                 female_version = re.sub(r'(?:\b{}\b)'.format(el), self.translation_dict[el], female_version)
-            print(female_version)
+            # print(female_version)
         if found_female:
-            print(male_version)
+            # print(male_version)
             for el in found_female:
                 male_version = re.sub(r'(?:\b{}\b)'.format(el), self.translation_dict[el], male_version)
-            print(male_version)
-        return line, male_version, female_version
+            # print(male_version)
+        if (not found_male) and (not found_female):
+            return line, male_version, female_version, 0
+        else:
+            return line, male_version, female_version, 1
 
     def tokenize_text(self, line):
         tokenized_sentence = self.tokenizer(
@@ -148,11 +153,16 @@ class CoLAData(TokenizeDataset):
         super(CoLAData, self).__init__(**kwargs)
 
     def __getitem__(self, item):
-        original, male, female = self.replace_gender_in_text(self.data[item][-1].lower())
+        self.item_current = max(self.item_current, item)
+        indicator = 0
+        while indicator == 0:
+            original, male, female, indicator = self.replace_gender_in_text(self.data[self.item_current][-1].lower())
+            self.item_current += 1
 
         return {
             "label": self.data[item][1],
-            "text": self.tokenize_text(self.data[item][-1].lower()),
+            "female": self.tokenize_text(male),
+            "male": self.tokenize_text(female),
         }
 
 
@@ -161,14 +171,20 @@ class QNLData(TokenizeDataset):
         super(QNLData, self).__init__(**kwargs)
 
     def __getitem__(self, item):
-        self.replace_gender_in_text(self.data[item][1].lower())
-        self.replace_gender_in_text(self.data[item][2].lower())
+        self.item_current = max(self.item_current, item)
+        indicator = 0
+        while indicator == 0:
+            original, male, female, indicator = self.replace_gender_in_text(self.data[self.item_current][1].lower())
+            self.item_current += 1
+
+        # TODO: how to handle answer
+        # self.replace_gender_in_text(self.data[item][2].lower())
 
         return {
-            "label": self.data[item][-1],
-            "text": self.tokenize_text(self.data[item][1].lower()),
-            "answer": self.tokenize_text(self.data[item][2].lower()),
-        }
+                   "label": self.data[item][-1],
+                   "male": self.tokenize_text(male),
+                   "female": self.tokenize_text(female),
+               }
 
 
 class SST2Data(TokenizeDataset):
@@ -176,9 +192,13 @@ class SST2Data(TokenizeDataset):
         super(SST2Data, self).__init__(**kwargs)
 
     def __getitem__(self, item):
-        self.replace_gender_in_text(self.data[item][0].lower())
-
+        self.item_current = max(self.item_current, item)
+        indicator = 0
+        while indicator == 0:
+            original, male, female, indicator = self.replace_gender_in_text(self.data[self.item_current][0].lower())
+            self.item_current += 1
         return {
             "label": self.data[item][-1],
-            "text": self.tokenize_text(self.data[item][0].lower()),
+            "male": self.tokenize_text(male),
+            "female": self.tokenize_text(female)
         }
