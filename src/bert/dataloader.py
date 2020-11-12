@@ -233,7 +233,7 @@ class SST2Data(TokenizeDataset):
         self.item_current = max(self.item_current, item)
         indicator = 0
         while indicator == 0:
-            original, male, female, indicator = self.replace_religion_in_text(self.data[self.item_current][0].lower())
+            original, male, female, indicator = self.replace_gender_in_text(self.data[self.item_current][0].lower())
             self.item_current += 1
         return {
             "label": self.data[item][-1],
