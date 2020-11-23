@@ -4,7 +4,7 @@ from src.bert.dataloader import GenericDataLoader, QNLData, CoLAData, SST2Data, 
 from src.bert.models import EmbeddingModel
 import torch
 import numpy as np
-from src.bert.evaluation import female_male_saving
+from src.bert.evaluation import female_male_saving, ScoreComputer
 
 
 def gender_run():
@@ -28,13 +28,15 @@ def gender_run():
                                data_path=data_path + "SST-2/train.tsv")
         data_loader = GenericDataLoader(dataset, validation_split=0, batch_size=batch_size)
         model = EmbeddingModel("bert-base-uncased", batch_size=8, device=device)
+        compute_score = ScoreComputer(tokenizer, model, batch_size, device)
+        compute_score.compute_score(6)
         mean_difference = torch.zeros(768, device=device)
         result_array_male = np.empty((len(data_loader.train_loader), 768), dtype=float)
         result_array_female = np.empty((len(data_loader.train_loader), 768), dtype=float)
 
         try:
             for n, el in enumerate(data_loader.train_loader):
-                #TODO: add normalization 
+                # TODO: add normalization
                 male_embedding = model.forward(**el["male"])[1].detach()
                 female_embedding = model.forward(**el["female"])[1].detach()
                 result_array_male[n:n + batch_size] = male_embedding.cpu().numpy()
@@ -43,7 +45,7 @@ def gender_run():
         except IndexError:
             print(mean_difference)
             print(n)
-        female_male_saving(result_array_male, result_array_female,data_path,data)
+        female_male_saving(result_array_male, result_array_female, data_path, data)
 
 
 def religion_run():

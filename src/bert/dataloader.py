@@ -1,8 +1,9 @@
 from torch.utils.data import DataLoader, SubsetRandomSampler, dataset, SequentialSampler
+from torch.utils.data import Sampler
 import numpy as np
 import csv
 import re
-
+import json
 
 class TwoWayDict(dict):
     def __init__(self, input_dict, **kwargs):
@@ -74,13 +75,18 @@ class GenericDataLoader:
                 self.dataset, batch_size, sampler=val_sampler, drop_last=True)
 
 
+
+
+
+
 class TokenizeDataset(dataset.Dataset):
-    def __init__(self, tokenizer, data_path):
+    def __init__(self, tokenizer, data_path,tokenizer_max_length=50):
         self.tokenizer = tokenizer
         self.data_path = data_path
         self.item_current = 0
         self.end = 0
         self.data = self._read_tsv()
+        self.tokenizer_max_length = tokenizer_max_length
         all_pats_male = ["he", "himself", "boy", "man", "father", "guy", "male", "his", "himself", "john"]
         all_pats_female = ["she", "herself", "girl", "woman", "mother", "gal", "female", "her", "herself", "mary"]
         self.translation_dict = TwoWayDict(dict(zip(all_pats_male, all_pats_female)))
@@ -177,7 +183,7 @@ class TokenizeDataset(dataset.Dataset):
             line,
             padding="max_length",
             truncation=True,
-            max_length=50,
+            max_length=self.tokenizer_max_length,
             return_tensors="pt",
         )
         return tokenized_sentence
@@ -303,3 +309,5 @@ class QNLDataReligion(TokenizeDataset):
             "muslim": self.tokenize_text(muslim),
             "jew": self.tokenize_text(jew),
         }
+
+
