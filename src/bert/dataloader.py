@@ -199,6 +199,7 @@ class CoLAData(TokenizeDataset):
 
         return {
             "label": self.data[item][1],
+            "original": original,
             "female": self.tokenize_text(male),
             "male": self.tokenize_text(female),
         }
