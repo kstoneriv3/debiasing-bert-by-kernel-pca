@@ -7,6 +7,8 @@ from transformers import BertTokenizer
 from src.bert.dataloader import GenericDataLoader, QNLData, CoLAData, SST2Data, CoLADataReligion, QNLDataReligion
 from src.bert.models import EmbeddingModel
 
+BATCHSIZE = 8
+
 def gender_run():
     # parse arguments
     parser = argparse.ArgumentParser()
@@ -20,7 +22,7 @@ def gender_run():
     tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
     dataset = CoLAData(tokenizer=tokenizer, data_path=args.data_path)
     data_loader = GenericDataLoader(dataset, validation_split=0, batch_size=8)
-    model = EmbeddingModel("bert-base-uncased", batch_size=8, device=device)
+    model = EmbeddingModel("bert-base-uncased", batch_size=BATCHSIZE, device=device)
 
     mean_differences = torch.zeros(768,device=device)
     if out_path is not None:
@@ -32,17 +34,15 @@ def gender_run():
             original_sentences = el["original"]
             male_embeddings = model.forward(**el["male"])[1].detach()
             female_embeddings = model.forward(**el["female"])[1].detach()
-            mean_differences = mean_differences*n/(n+1)+(male_embeddings-female_embeddings).mean(0)/(n+1)
+            # mean_differences = mean_differences*n/(n+1)+(male_embeddings-female_embeddings).mean(0)/(n+1)
             if out_path is not None:
-                male_embeddings = male_embeddings.cpu().numpy().squeeze()
-                female_embeddings = female_embeddings.cpu().numpy().squeeze()
-                for o, m, f in zip(original_sentences, male_embeddings, female_embeddings):
-                    writer.writerow([n, o, "male"] + list(m))
-                    writer.writerow([n, o, "female"] + list(f))
+                batch_id = n
+                csv_write(writer, batch_id, original_sentences, male_embeddings, female_embeddings)
     except IndexError:
-        print(mean_differences)
-        print(n)
-        
+        pass
+        # print(mean_differences)
+        # print(n)
+
 def religion_run():
     # parse arguments
     parser = argparse.ArgumentParser()
@@ -69,6 +69,17 @@ def get_output_path(args):
         except:
             print("Cannot determine the output_path from the --data-path. No output file is created.")
     return out_path
+
+def csv_write(writer, batch_id, original_sentences, male_embeddings, female_embeddings):
+    male_embeddings = male_embeddings.cpu().numpy()
+    female_embeddings = female_embeddings.cpu().numpy()
+    for i, outputs in enumerate(zip(original_sentences, male_embeddings, female_embeddings)):
+        o, m, f = outputs
+        writer.writerow([BATCHSIZE*batch_id + i, o, "male"] + list(m))
+        writer.writerow([BATCHSIZE*batch_id + i, o, "female"] + list(f))
+    print("Saved the embeddings of sentence {} to {}.".format(
+        BATCHSIZE * batch_id, BATCHSIZE * batch_id + i
+    ))
 
 if __name__ == "__main__":
     gender_run()
