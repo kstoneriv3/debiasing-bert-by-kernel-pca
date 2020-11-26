@@ -16,6 +16,13 @@ def gender_run():
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
     tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+    model = EmbeddingModel("bert-base-uncased", batch_size=8, device=device)
+
+    compute_score = ScoreComputer(tokenizer, model, batch_size, device)
+    print(compute_score.compute_score(6,"cosine"),compute_score.compute_score(6,"gaus"),compute_score.compute_score(6,"sigmoid"))
+    print(compute_score.compute_score(7,"cosine"),compute_score.compute_score(7,"gaus"),compute_score.compute_score(7,"sigmoid"))
+    print(compute_score.compute_score(8,"cosine"),compute_score.compute_score(8,"gaus"),compute_score.compute_score(8,"sigmoid"))
+
     for data in ["CoLA", "QNLI", "SST2"]:
         if data == "CoLA":
             dataset = CoLAData(tokenizer=tokenizer,
@@ -27,9 +34,7 @@ def gender_run():
             dataset = SST2Data(tokenizer=tokenizer,
                                data_path=data_path + "SST-2/train.tsv")
         data_loader = GenericDataLoader(dataset, validation_split=0, batch_size=batch_size)
-        model = EmbeddingModel("bert-base-uncased", batch_size=8, device=device)
-        compute_score = ScoreComputer(tokenizer, model, batch_size, device)
-        compute_score.compute_score(6)
+
         mean_difference = torch.zeros(768, device=device)
         result_array_male = np.empty((len(data_loader.train_loader), 768), dtype=float)
         result_array_female = np.empty((len(data_loader.train_loader), 768), dtype=float)
