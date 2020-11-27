@@ -1,10 +1,14 @@
 import argparse
 from transformers import BertTokenizer
-from src.bert.dataloader import GenericDataLoader, QNLData, CoLAData, SST2Data, CoLADataReligion, QNLDataReligion
+from src.bert.dataloader import GenericDataLoader,NewsData, QNLData, CoLAData, SST2Data, CoLADataReligion, QNLDataReligion
 from src.bert.models import EmbeddingModel
 import torch
 import numpy as np
 from src.bert.evaluation import female_male_saving, ScoreComputer
+def compute_metrics(compute_score,data):
+    print(compute_score.compute_score(6,"cosine",data), compute_score.compute_score(6,"gaus",data), compute_score.compute_score(6,"sigmoid",data))
+    print(compute_score.compute_score(7,"cosine",data), compute_score.compute_score(7,"gaus",data), compute_score.compute_score(7,"sigmoid",data))
+    print(compute_score.compute_score(8,"cosine",data), compute_score.compute_score(8,"gaus",data), compute_score.compute_score(8,"sigmoid",data))
 
 
 def gender_run():
@@ -12,18 +16,19 @@ def gender_run():
     parser = argparse.ArgumentParser()
     args = parser.parse_args()
     batch_size = 8
-    data_path = "D:/Dokumente/Universitaet/Statistik/ML/NLP_new/debiasing-sent/data/"
+    data_path = "./data/"
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
     tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
     model = EmbeddingModel("bert-base-uncased", batch_size=8, device=device)
 
     compute_score = ScoreComputer(tokenizer, model, batch_size, device)
-    print(compute_score.compute_score(6,"cosine"),compute_score.compute_score(6,"gaus"),compute_score.compute_score(6,"sigmoid"))
-    print(compute_score.compute_score(7,"cosine"),compute_score.compute_score(7,"gaus"),compute_score.compute_score(7,"sigmoid"))
-    print(compute_score.compute_score(8,"cosine"),compute_score.compute_score(8,"gaus"),compute_score.compute_score(8,"sigmoid"))
 
-    for data in ["CoLA", "QNLI", "SST2"]:
+    compute_metrics(compute_score,"QNLI")
+    compute_metrics(compute_score,"CoLA")
+    compute_metrics(compute_score,"SST2")
+
+    for data in ["SST2","CoLA", "QNLI"]:
         if data == "CoLA":
             dataset = CoLAData(tokenizer=tokenizer,
                                data_path=data_path + "CoLA/train.tsv")
@@ -33,6 +38,11 @@ def gender_run():
         elif data == "SST2":
             dataset = SST2Data(tokenizer=tokenizer,
                                data_path=data_path + "SST-2/train.tsv")
+        elif data == "AGNews":
+            dataset = NewsData(
+                tokenizer=tokenizer,
+                data_path=data_path+"AGNews/train.csv",
+            )
         data_loader = GenericDataLoader(dataset, validation_split=0, batch_size=batch_size)
 
         mean_difference = torch.zeros(768, device=device)

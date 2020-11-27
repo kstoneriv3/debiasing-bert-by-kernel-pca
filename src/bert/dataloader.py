@@ -5,6 +5,7 @@ import csv
 import re
 import json
 
+
 class TwoWayDict(dict):
     def __init__(self, input_dict, **kwargs):
         super().__init__(**kwargs)
@@ -75,12 +76,8 @@ class GenericDataLoader:
                 self.dataset, batch_size, sampler=val_sampler, drop_last=True)
 
 
-
-
-
-
 class TokenizeDataset(dataset.Dataset):
-    def __init__(self, tokenizer, data_path,tokenizer_max_length=50):
+    def __init__(self, tokenizer, data_path, tokenizer_max_length=50):
         self.tokenizer = tokenizer
         self.data_path = data_path
         self.item_current = 0
@@ -104,6 +101,22 @@ class TokenizeDataset(dataset.Dataset):
         self.pattern_muslim = re.compile(r'|'.join(map(r'(?:\b{}\b)'.format, all_pats_muslim)))
         self.pattern_jew = re.compile(r'|'.join(map(r'(?:\b{}\b)'.format, all_pats_jew)))
 
+        all_pats_career = ["careers""career","businesses","business","executive", "management", "professional",
+                           "corporation", "salary", "salaries", "office", "offices"]
+        all_pats_home = ["relative", "relatives", "home", "parent", "parents", "child", "children", "family", "cousin",
+                         "cousins", "marriage", "marriages", "weddings"]
+
+        self.pattern_career = re.compile(r'|'.join(map(r'(?:\b{}\b)'.format, all_pats_career)))
+        self.pattern_home = re.compile(r'|'.join(map(r'(?:\b{}\b)'.format, all_pats_home)))
+        # TODO: arbitrary removed numbers
+        all_pats_math = ["math","algebra","geometry","calculus","equation", "computation"]
+                           # "addition", "additions"]
+        all_pats_arts = ["poetry", "art", "dance", "dances", "literature", "novel", "novels", "symphony", "symphonies",
+                         "drama", "dramas", "sculpture", "sculptures"]
+
+        self.pattern_math = re.compile(r'|'.join(map(r'(?:\b{}\b)'.format, all_pats_math)))
+        self.pattern_arts = re.compile(r'|'.join(map(r'(?:\b{}\b)'.format, all_pats_arts)))
+
     def _read_tsv(self):
         tsv_file = open(self.data_path, encoding="utf8")
         tsv_reader = csv.reader(tsv_file, delimiter="\t")
@@ -123,6 +136,14 @@ class TokenizeDataset(dataset.Dataset):
             print("male", line, found_male)  # samples are not really convincing yet
         if found_female:
             print("female", line, found_female)
+
+    def find_career_in_text(self, line):
+        found_career = re.findall(self.pattern_career, line)
+        found_home = re.findall(self.pattern_home, line)
+        if found_career:
+            print("male", line, found_career)  # samples are not really convincing yet
+        if found_home:
+            print("female", line, found_home)
 
     def replace_gender_in_text(self, line):
         male_version = line
@@ -201,14 +222,46 @@ class CoLAData(TokenizeDataset):
         indicator = 0
         while indicator == 0:
             original, male, female, indicator = self.replace_gender_in_text(self.data[self.item_current][-1].lower())
+            # self.find_career_in_text(self.data[self.item_current][-1].lower())
             self.item_current += 1
 
         return {
             "label": self.data[item][1],
-            "female": self.tokenize_text(male),
-            "male": self.tokenize_text(female),
+            "female": self.tokenize_text(female),
+            "male": self.tokenize_text(male),
         }
 
+
+class NewsData(TokenizeDataset):
+    def __init__(self, **kwargs):
+        super(NewsData, self).__init__(**kwargs)
+
+    def _read_tsv(self):
+        tsv_file = open(self.data_path, encoding="utf8")
+        tsv_reader = csv.reader(tsv_file, delimiter=",")
+        tsv_reader.__next__()
+        lines = []
+        for line in tsv_reader:
+            text = line[2]
+            text = text[text.find("-")+1:]
+            text = text.split(".")[0]
+            line[2]=re.sub(r"[^a-zA-Z0-9,.]+", ' ',text)
+            lines.append(line)
+        return lines
+
+    def __getitem__(self, item):
+        self.item_current = max(self.item_current, item)
+        indicator = 0
+        while indicator == 0:
+            original, male, female, indicator = self.replace_gender_in_text(self.data[self.item_current][-1].lower())
+            # self.find_career_in_text(self.data[self.item_current][-1].lower())
+            self.item_current += 1
+
+        return {
+            "label": self.data[item][1],
+            "female": self.tokenize_text(female),
+            "male": self.tokenize_text(male),
+        }
 
 class QNLData(TokenizeDataset):
     def __init__(self, **kwargs):
@@ -219,6 +272,7 @@ class QNLData(TokenizeDataset):
         indicator = 0
         while indicator == 0:
             original, male, female, indicator = self.replace_gender_in_text(self.data[self.item_current][1].lower())
+            # self.find_career_in_text(self.data[self.item_current][-1].lower())
             self.item_current += 1
 
         # TODO: how to handle answer
@@ -240,6 +294,7 @@ class SST2Data(TokenizeDataset):
         indicator = 0
         while indicator == 0:
             original, male, female, indicator = self.replace_gender_in_text(self.data[self.item_current][0].lower())
+            # self.find_career_in_text(self.data[self.item_current][-1].lower())
             self.item_current += 1
         return {
             "label": self.data[item][-1],
@@ -296,7 +351,8 @@ class QNLDataReligion(TokenizeDataset):
         self.item_current = max(self.item_current, item)
         indicator = 0
         while indicator == 0:
-            original, christ, muslim, jew, indicator = self.replace_religion_in_text(self.data[self.item_current][1].lower())
+            original, christ, muslim, jew, indicator = self.replace_religion_in_text(
+                self.data[self.item_current][1].lower())
             self.item_current += 1
 
         # TODO: how to handle answer
@@ -309,5 +365,3 @@ class QNLDataReligion(TokenizeDataset):
             "muslim": self.tokenize_text(muslim),
             "jew": self.tokenize_text(jew),
         }
-
-

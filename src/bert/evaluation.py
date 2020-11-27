@@ -10,7 +10,7 @@ def female_male_saving(male_array, female_array, data_path, data_name):
     result_array_female = np.resize(female_array, (max_written, 768))
     result_array_male = np.resize(male_array, (max_written, 768))
 
-    h5f = h5py.File(data_path + 'data_out.h5', 'w')
+    h5f = h5py.File(data_path + 'data_out.h5', 'a')
     h5f.create_dataset("female_embeddings_{}".format(data_name), data=result_array_female)
     h5f.create_dataset("male_embeddings_{}".format(data_name), data=result_array_male)
     h5f.close()
@@ -54,9 +54,10 @@ def score(emb, attribute_list_a, attribute_list_b, metric):
 
 
 class ScoreComputer:
-    def __init__(self, tokenizer, model, batch_size, device, tokenizer_max_length=50):
+    def __init__(self, tokenizer, model, batch_size, device,data_path="./data", tokenizer_max_length=50):
         self.tokenizer = tokenizer
         self.batch_size = batch_size
+        self.data_path=data_path
         self.main_dict = {}
         self.read_json()
         self.model = model
@@ -89,9 +90,16 @@ class ScoreComputer:
             embedding[j:j + self.batch_size] = self.model.forward(**tokenized)[1].detach().cpu().numpy()
         return embedding
 
-    def compute_score(self, i, metric="cosine"):
-        attribute_1 = self.get_dict_embeddings(i, "attr", 1)
-        attribute_2 = self.get_dict_embeddings(i, "attr", 2)
+    def get_text_examples(self,data_name):
+        f = h5py.File(self.data_path + '/data_out.h5', 'r')
+        female_embeddings=f["female_embeddings_{}".format(data_name)][:]
+        male_embeddings=f["male_embeddings_{}".format(data_name)][:]
+        return male_embeddings,female_embeddings
+
+    def compute_score(self, i, metric="cosine", data="QNLI"):
+        # attribute_1 = self.get_dict_embeddings(i, "attr", 1)
+        # attribute_2 = self.get_dict_embeddings(i, "attr", 2)
+        attribute_1, attribute_2 = self.get_text_examples(data)
         target_1 = self.get_dict_embeddings(i, "targ", 1)
         target_2 = self.get_dict_embeddings(i, "targ", 2)
 
