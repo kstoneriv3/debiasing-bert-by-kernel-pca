@@ -25,19 +25,13 @@ def gender_run():
     model = EmbeddingModel("bert-base-uncased", batch_size=BATCHSIZE, device=device)
 
     mean_differences = torch.zeros(768,device=device)
-    if out_path is not None:
-        csvfile = open(out_path, 'w')
-        writer = csv.writer(csvfile, delimiter='\t')
-        writer.writerow(["defining set id", "original sentence", "type"] + ["e_{}".format(i) for i in range(768)])
-    try:
+      try:
         for n, el in enumerate(data_loader.train_loader):
             original_sentences = el["original"]
             male_embeddings = model.forward(**el["male"])[1].detach()
             female_embeddings = model.forward(**el["female"])[1].detach()
             # mean_differences = mean_differences*n/(n+1)+(male_embeddings-female_embeddings).mean(0)/(n+1)
-            if out_path is not None:
-                batch_id = n
-                csv_write(writer, batch_id, original_sentences, male_embeddings, female_embeddings)
+
     except IndexError:
         pass
         # print(mean_differences)
@@ -59,27 +53,8 @@ def religion_run():
         jew_embedding = model.forward(**el["jew"])
         muslim_embedding = model.forward(**el["muslim"])
 
-def get_output_path(args):
-    out_path = args.out_path
-    data_path = args.data_path
-    if out_path is None:
-        try:
-            out_file, out_ext = os.path.splitext(data_path)
-            out_path = out_file + "_embeddings" + out_ext
-        except:
-            print("Cannot determine the output_path from the --data-path. No output file is created.")
-    return out_path
 
-def csv_write(writer, batch_id, original_sentences, male_embeddings, female_embeddings):
-    male_embeddings = male_embeddings.cpu().numpy()
-    female_embeddings = female_embeddings.cpu().numpy()
-    for i, outputs in enumerate(zip(original_sentences, male_embeddings, female_embeddings)):
-        o, m, f = outputs
-        writer.writerow([BATCHSIZE*batch_id + i, o, "male"] + list(m))
-        writer.writerow([BATCHSIZE*batch_id + i, o, "female"] + list(f))
-    print("Saved the embeddings of sentence {} to {}.".format(
-        BATCHSIZE * batch_id, BATCHSIZE * batch_id + i
-    ))
+
 
 if __name__ == "__main__":
     gender_run()
