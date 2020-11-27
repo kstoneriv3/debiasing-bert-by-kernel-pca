@@ -10,9 +10,11 @@ def female_male_saving(male_array, female_array, data_path, data_name):
     result_array_female = np.resize(female_array, (max_written, 768))
     result_array_male = np.resize(male_array, (max_written, 768))
 
-    h5f = h5py.File(data_path + 'data_out.h5', 'a')
-    h5f.create_dataset("female_embeddings_{}".format(data_name), data=result_array_female)
-    h5f.create_dataset("male_embeddings_{}".format(data_name), data=result_array_male)
+    h5f = h5py.File(data_path + 'data_out.h5', 'r+')
+    fem_data = h5f["female_embeddings_{}".format(data_name)]
+    fem_data[...] = result_array_female
+    male_data = h5f["male_embeddings_{}".format(data_name)]
+    male_data[...] = result_array_male
     h5f.close()
 
 
