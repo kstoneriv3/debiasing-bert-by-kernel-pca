@@ -5,10 +5,13 @@ from src.bert.models import EmbeddingModel
 import torch
 import numpy as np
 from src.bert.evaluation import female_male_saving, ScoreComputer
+
 def compute_metrics(compute_score,data):
     print(compute_score.compute_score(6,"cosine",data), compute_score.compute_score(6,"gaus",data), compute_score.compute_score(6,"sigmoid",data))
     print(compute_score.compute_score(7,"cosine",data), compute_score.compute_score(7,"gaus",data), compute_score.compute_score(7,"sigmoid",data))
     print(compute_score.compute_score(8,"cosine",data), compute_score.compute_score(8,"gaus",data), compute_score.compute_score(8,"sigmoid",data))
+
+BATCHSIZE = 8
 
 
 def gender_run():
