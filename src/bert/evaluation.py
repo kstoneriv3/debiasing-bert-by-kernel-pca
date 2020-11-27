@@ -19,21 +19,21 @@ def female_male_saving(male_array, female_array, data_path, data_name):
 
 
 def cosine_similarity(emb, el):
-    emb=normalize(emb)
-    el = normalize(el.reshape(-1,1),axis=0).reshape(-1)
+    emb = normalize(emb)
+    el = normalize(el.reshape(-1, 1), axis=0).reshape(-1)
     return np.matmul(emb, el) / (np.linalg.norm(emb, axis=1) * np.linalg.norm(el))
 
 
 def rbf_similarity(emb, el, gamma=0.1):
-    emb=normalize(emb)
-    el = normalize(el.reshape(-1,1),axis=0).reshape(-1)
-    return np.exp(-gamma * np.sum(np.square(emb - el.reshape(1,-1)),axis=1))
+    emb = normalize(emb)
+    el = normalize(el.reshape(-1, 1), axis=0).reshape(-1)
+    return np.exp(-gamma * np.sum(np.square(emb - el.reshape(1, -1)), axis=1))
 
 
 def sigmoid_similarity(emb, el, gamma=0.0001, c0=0):
-    emb=normalize(emb)
-    el =normalize(el.reshape(-1,1),axis=0).reshape(-1)
-    return np.tanh(gamma * np.matmul(emb,el) + c0)
+    emb = normalize(emb)
+    el = normalize(el.reshape(-1, 1), axis=0).reshape(-1)
+    return np.tanh(gamma * np.matmul(emb, el) + c0)
 
 
 def score(emb, attribute_list_a, attribute_list_b, metric):
@@ -56,10 +56,10 @@ def score(emb, attribute_list_a, attribute_list_b, metric):
 
 
 class ScoreComputer:
-    def __init__(self, tokenizer, model, batch_size, device,data_path="./data", tokenizer_max_length=50):
+    def __init__(self, tokenizer, model, batch_size, device, data_path="./data", tokenizer_max_length=50):
         self.tokenizer = tokenizer
         self.batch_size = batch_size
-        self.data_path=data_path
+        self.data_path = data_path
         self.main_dict = {}
         self.read_json()
         self.model = model
@@ -92,11 +92,11 @@ class ScoreComputer:
             embedding[j:j + self.batch_size] = self.model.forward(**tokenized)[1].detach().cpu().numpy()
         return embedding
 
-    def get_text_examples(self,data_name):
+    def get_text_examples(self, data_name):
         f = h5py.File(self.data_path + '/data_out.h5', 'r')
-        female_embeddings=f["female_embeddings_{}".format(data_name)][:]
-        male_embeddings=f["male_embeddings_{}".format(data_name)][:]
-        return male_embeddings,female_embeddings
+        female_embeddings = f["female_embeddings_{}".format(data_name)][:]
+        male_embeddings = f["male_embeddings_{}".format(data_name)][:]
+        return male_embeddings, female_embeddings
 
     def compute_score(self, i, metric="cosine", data="QNLI"):
         # attribute_1 = self.get_dict_embeddings(i, "attr", 1)
@@ -109,3 +109,9 @@ class ScoreComputer:
         score_target_2 = score(target_2, attribute_1, attribute_2, metric)
         return (np.mean(score_target_1) - np.mean(score_target_2)) / np.std(
             np.concatenate([score_target_1, score_target_2]))
+
+    def compute_all_metrics(self):
+        for data in ["SST2", "CoLA", "QNLI"]:
+            for i in [6, 7, 8]:
+                print(self.compute_score(i, "cosine", data), self.compute_score(i, "gaus", data),
+                      self.compute_score(i, "sigmoid", data))
