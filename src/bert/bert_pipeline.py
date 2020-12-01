@@ -14,13 +14,12 @@ BATCHSIZE = 8
 
 
 def gender_example_creation(args):
-    batch_size = 8
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
     tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
-    model = EmbeddingModel("bert-base-uncased", batch_size=8, device=device)
+    model = EmbeddingModel("bert-base-uncased", batch_size=BATCHSIZE, device=device)
 
-    compute_score = ScoreComputer(tokenizer, model, batch_size, device)
+    compute_score = ScoreComputer(tokenizer, model, BATCHSIZE, device)
 
     compute_score.compute_all_metrics()
 
@@ -39,7 +38,7 @@ def gender_example_creation(args):
                 tokenizer=tokenizer,
                 data_path=args.data_path + "AGNews/train.csv",
             )
-        data_loader = GenericDataLoader(dataset, validation_split=0, batch_size=batch_size)
+        data_loader = GenericDataLoader(dataset, validation_split=0, batch_size=BATCHSIZE)
 
         result_array_female, result_array_male = male_female_forward_pass(data_loader, tokenizer, BATCHSIZE, device)
         female_male_saving(result_array_male, result_array_female, args.output_path, data)
@@ -55,21 +54,21 @@ def gender_debiasing(args):
 
 
 def evaluation_gender_run():
-    batch_size = 8
+
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
     tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
-    model = EmbeddingModel("bert-base-uncased", batch_size=8, device=device)
+    model = EmbeddingModel("bert-base-uncased", batch_size=BATCHSIZE, device=device)
 
     dataset = select_data_set(data_name=args.data_name, tokenizer=tokenizer, data_path=args.data_path, mode="train")
 
-    compute_score = ScoreComputer(tokenizer, model, batch_size, device)
+    compute_score = ScoreComputer(tokenizer, model, BATCHSIZE, device)
 
-    data_loader = GenericDataLoader(dataset, validation_split=0, batch_size=batch_size)
+    data_loader = GenericDataLoader(dataset, validation_split=0, batch_size=BATCHSIZE)
 
     result_array_female, result_array_male = male_female_forward_pass(data_loader, model, BATCHSIZE, device)
     compute_score.read_text_example(result_array_male, result_array_female)
-    print("Original score train:", compute_score.compute_score(6, "cosine"))
+    print("Original score train:", compute_score.compute_score(6, "cosine"), compute_score.compute_score(6, "gaus"))
 
     debias = DebiasingPCA(3)
     embeddings, label_index = prepare_pca_input(result_array_male, result_array_female)
@@ -77,20 +76,20 @@ def evaluation_gender_run():
     debiased_embeddings = debias.debias(embeddings)
     compute_score.read_text_example(debiased_embeddings[label_index == 1], debiased_embeddings[label_index == 0])
 
-    print("Debiased score train:",compute_score.compute_score(6, "cosine"))
+    print("Debiased score train:",compute_score.compute_score(6, "cosine"), compute_score.compute_score(6, "gaus"))
 
     dataset = select_data_set(data_name=args.data_name, tokenizer=tokenizer, data_path=args.data_path, mode="test")
-    data_loader = GenericDataLoader(dataset, validation_split=0, batch_size=batch_size)
+    data_loader = GenericDataLoader(dataset, validation_split=0, batch_size=BATCHSIZE)
     result_array_female, result_array_male = male_female_forward_pass(data_loader, model, BATCHSIZE, device)
     compute_score.read_text_example(result_array_male, result_array_female)
 
-    print("Original score test:", compute_score.compute_score(6, "cosine"))
+    print("Original score test:", compute_score.compute_score(6, "cosine"), compute_score.compute_score(6, "gaus"))
 
     embeddings, label_index = prepare_pca_input(result_array_male, result_array_female)
     debiased_embeddings = debias.debias(embeddings)
     compute_score.read_text_example(debiased_embeddings[label_index == 1], debiased_embeddings[label_index == 0])
 
-    print("Debiased score test:", compute_score.compute_score(6, "cosine"))
+    print("Debiased score test:", compute_score.compute_score(6, "cosine"), compute_score.compute_score(6, "gaus"))
 
 
 def religion_run():
@@ -102,8 +101,8 @@ def religion_run():
     dataset = QNLDataReligion(tokenizer=tokenizer,
                               data_path="D:/Dokumente/Universitaet/Statistik/ML/NLP_new/debiasing-sent/data"
                                         "/QNLI/dev.tsv")
-    data_loader = GenericDataLoader(dataset, validation_split=0, batch_size=8)
-    model = EmbeddingModel("bert-base-uncased", batch_size=8)
+    data_loader = GenericDataLoader(dataset, validation_split=0, batch_size=BATCHSIZE)
+    model = EmbeddingModel("bert-base-uncased", batch_size=BATCHSIZE)
     for el in data_loader.train_loader:
         christ_embedding = model.forward(**el["christ"])
         jew_embedding = model.forward(**el["jew"])

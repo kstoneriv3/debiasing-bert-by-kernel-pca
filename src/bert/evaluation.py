@@ -129,8 +129,8 @@ class ScoreComputer:
 
 def male_female_forward_pass(data_loader, model, batch_size, device):
     mean_difference = torch.zeros(768, device=device)
-    result_array_male = np.empty((len(data_loader.train_loader), 768), dtype=float)
-    result_array_female = np.empty((len(data_loader.train_loader), 768), dtype=float)
+    result_array_male = np.empty((len(data_loader.train_loader)*batch_size, 768), dtype=float)
+    result_array_female = np.empty((len(data_loader.train_loader)*batch_size, 768), dtype=float)
 
     try:
         for n, el in enumerate(data_loader.train_loader):
@@ -140,9 +140,9 @@ def male_female_forward_pass(data_loader, model, batch_size, device):
             result_array_male[n*batch_size:(n +1)* batch_size] = male_embedding.cpu().numpy()
             result_array_female[n*batch_size:(n+1) * batch_size] = female_embedding.cpu().numpy()
             mean_difference = mean_difference * n / (n + 1) + (male_embedding - female_embedding).mean(0) / (n + 1)
-    except IndexError:
+    except IndexError or ValueError:
         # print(mean_difference)
-        print(n)
+        print("finish")
     result_array_female= result_array_female[: np.where(result_array_female[:, 0] == 0)[0][0]]
     result_array_male= result_array_male[: np.where(result_array_male[:, 0] == 0)[0][0]]
     return result_array_female, result_array_male
