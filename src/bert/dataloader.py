@@ -3,7 +3,7 @@ from torch.utils.data import Sampler
 import numpy as np
 import csv
 import re
-import json
+import h5py
 
 
 class TwoWayDict(dict):
@@ -365,3 +365,31 @@ class QNLDataReligion(TokenizeDataset):
             "muslim": self.tokenize_text(muslim),
             "jew": self.tokenize_text(jew),
         }
+
+
+def load_from_database(data_path,data_name):
+    f = h5py.File(data_path + '/data_out.h5', 'r')
+    female_embeddings = f["female_embeddings_{}".format(data_name)][:]
+    male_embeddings = f["male_embeddings_{}".format(data_name)][:]
+    return male_embeddings,female_embeddings
+
+
+def select_data_set(data_name,tokenizer,data_path,mode):
+    if data_name == "CoLA":
+        dataset = CoLAData(tokenizer=tokenizer,
+                           data_path=data_path + "CoLA/{}.tsv".format(mode))
+    elif data_name == "QNLI":
+        dataset = QNLData(tokenizer=tokenizer,
+                          data_path=data_path + "QNLI/{}.tsv".format(mode))
+    elif data_name == "SST2":
+        dataset = SST2Data(tokenizer=tokenizer,
+                           data_path=data_path + "SST-2/{}.tsv".format(mode))
+    elif data_name == "AGNews":
+        dataset = NewsData(
+            tokenizer=tokenizer,
+            data_path=data_path + "AGNews/{}.csv".format(mode),
+        )
+    else:
+        raise NotImplementedError
+
+    return dataset
