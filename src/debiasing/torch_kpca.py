@@ -76,7 +76,7 @@ class TorchDebiasingKernelPCA:
     ------
     The design of this class is based on the sklearn.decomposition.KernelPCA.
     """
-    def __init__(self, n_components, *, kernel=TorchRBF):
+    def __init__(self, n_components=2, *, kernel=TorchRBF):
         self.n_components = n_components
         self.kernel = self.add_autoreshape(kernel)
         self.X_fit_ = None
@@ -206,7 +206,7 @@ class TorchDebiasingKernelPCA:
         return losses
         
         
-    def debias(self, X, n_iter=30, lr=0.01):
+    def debias(self, X, n_iter=30, lr=0.03):
         """Debias the embeddings by reprojection of kernel PCA.
         
         Parameters
