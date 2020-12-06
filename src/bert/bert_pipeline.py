@@ -44,69 +44,77 @@ def gender_example_creation(args):
         female_male_saving(result_array_male, result_array_female, args.output_path, data)
 
 
-def gender_debiasing(args):
-    male_embeddings, female_embeddings = load_from_database(args.data_path, data_name="QNLI")
-    debias = DebiasingPCA(2)
-    embeddings = np.concatenate([male_embeddings, female_embeddings])
-    label_index = np.concatenate([np.zeros(len(male_embeddings)), np.ones(len(female_embeddings))])
-    debias.fit(embeddings, label_index)
-    debiased_embeddings = debias.debias(embeddings)
-
-
 def evaluation_gender_run():
-
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-
     tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
     model = EmbeddingModel("bert-base-uncased", batch_size=BATCHSIZE, device=device)
-
-    dataset = select_data_set(data_name=args.data_name, tokenizer=tokenizer, data_path=args.data_path, mode="train")
-
     compute_score = ScoreComputer(tokenizer, model, BATCHSIZE, device)
 
+    # Compute embeddings for the train dataset
+    dataset = select_data_set(data_name=args.data_name, tokenizer=tokenizer, data_path=args.data_path, mode="train")
     data_loader = GenericDataLoader(dataset, validation_split=0, batch_size=BATCHSIZE)
-
     result_array_female, result_array_male = male_female_forward_pass(data_loader, model, BATCHSIZE, device)
-    compute_score.read_text_example(result_array_male, result_array_female)
-    print("Original score train:", compute_score.compute_score(6, "cosine"), compute_score.compute_score(6, "gaus"))
 
-    debias = DebiasingPCA(3)
+    # Score BERT for the train dataset
+    compute_score.read_text_example(result_array_male, result_array_female)
+    print("My Score train:", compute_score.compute_score(7, "cosine"), compute_score.compute_score(7, "gaus"))
+
+    # Score BERT for the original examples
+    compute_score.load_original_seat()
+    print("Original metric train:", compute_score.compute_score(7, "cosine"),
+          compute_score.compute_score(7, "gaus"))
+
+    # Train the debiasing algorithm
+    debias = DebiasingPCA(8)
     embeddings, label_index = prepare_pca_input(result_array_male, result_array_female)
     debias.fit(embeddings, label_index)
+
+    # Debias train embeddings
     debiased_embeddings = debias.debias(embeddings)
-    compute_score.read_text_example(debiased_embeddings[label_index == 1], debiased_embeddings[label_index == 0])
 
-    print("Debiased score train:",compute_score.compute_score(6, "cosine"), compute_score.compute_score(6, "gaus"))
+    # Compute scores of debiased embeddings
+    compute_score.read_text_example(debiased_embeddings[label_index == 0], debiased_embeddings[label_index == 1])
+    print("My score debias train:", compute_score.compute_score(7, "cosine"), compute_score.compute_score(7, "gaus"))
 
+    # Compute score of original metric after debiasing
+    compute_score.load_original_seat()
+    compute_score.male_embeddings = debias.debias(compute_score.male_embeddings)
+    compute_score.female_embeddings = debias.debias(compute_score.female_embeddings)
+    print("original metric debias:", compute_score.compute_score(7, "cosine"),
+          compute_score.compute_score(7, "gaus"))
+
+    # Analyze results on the test dataset
     dataset = select_data_set(data_name=args.data_name, tokenizer=tokenizer, data_path=args.data_path, mode="test")
     data_loader = GenericDataLoader(dataset, validation_split=0, batch_size=BATCHSIZE)
-    result_array_female, result_array_male = male_female_forward_pass(data_loader, model, BATCHSIZE, device)
-    compute_score.read_text_example(result_array_male, result_array_female)
 
-    print("Original score test:", compute_score.compute_score(6, "cosine"), compute_score.compute_score(6, "gaus"))
+    result_array_female, result_array_male = male_female_forward_pass(data_loader, model, BATCHSIZE, device)
+
+
+    compute_score.read_text_example(result_array_male, result_array_female)
+    print("Original score test:", compute_score.compute_score(7, "cosine"), compute_score.compute_score(7, "gaus"))
+
 
     embeddings, label_index = prepare_pca_input(result_array_male, result_array_female)
     debiased_embeddings = debias.debias(embeddings)
-    compute_score.read_text_example(debiased_embeddings[label_index == 1], debiased_embeddings[label_index == 0])
+    compute_score.read_text_example(debiased_embeddings[label_index == 0], debiased_embeddings[label_index == 1])
+    print("Debiased score test:", compute_score.compute_score(7, "cosine"), compute_score.compute_score(7, "gaus"))
 
-    print("Debiased score test:", compute_score.compute_score(6, "cosine"), compute_score.compute_score(6, "gaus"))
 
-
-def religion_run():
-    # parse arguments
-    parser = argparse.ArgumentParser()
-    args = parser.parse_args()
-
-    tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
-    dataset = QNLDataReligion(tokenizer=tokenizer,
-                              data_path="D:/Dokumente/Universitaet/Statistik/ML/NLP_new/debiasing-sent/data"
-                                        "/QNLI/dev.tsv")
-    data_loader = GenericDataLoader(dataset, validation_split=0, batch_size=BATCHSIZE)
-    model = EmbeddingModel("bert-base-uncased", batch_size=BATCHSIZE)
-    for el in data_loader.train_loader:
-        christ_embedding = model.forward(**el["christ"])
-        jew_embedding = model.forward(**el["jew"])
-        muslim_embedding = model.forward(**el["muslim"])
+# def religion_run():
+#     # parse arguments
+#     parser = argparse.ArgumentParser()
+#     args = parser.parse_args()
+#
+#     tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+#     dataset = QNLDataReligion(tokenizer=tokenizer,
+#                               data_path="D:/Dokumente/Universitaet/Statistik/ML/NLP_new/debiasing-sent/data"
+#                                         "/QNLI/dev.tsv")
+#     data_loader = GenericDataLoader(dataset, validation_split=0, batch_size=BATCHSIZE)
+#     model = EmbeddingModel("bert-base-uncased", batch_size=BATCHSIZE)
+#     for el in data_loader.train_loader:
+#         christ_embedding = model.forward(**el["christ"])
+#         jew_embedding = model.forward(**el["jew"])
+#         muslim_embedding = model.forward(**el["muslim"])
 
 
 if __name__ == "__main__":

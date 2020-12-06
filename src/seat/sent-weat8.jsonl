@@ -1,5 +1,5 @@
 {
-  "targ1": {
+  "attr1": {
     "category": "Science",
     "examples": [
       "This is science.",
@@ -60,7 +60,7 @@
       "It is astronomy."
     ]
   },
-  "targ2": {
+  "attr2": {
     "category": "Arts",
     "examples": [
       "This is poetry.",
@@ -121,7 +121,7 @@
       "Dramas are things."
     ]
   },
-  "attr1": {
+  "targ1": {
     "category": "MaleTerms",
     "examples": [
       "This is a brother.",
@@ -206,7 +206,7 @@
       "That is him."
     ]
   },
-  "attr2": {
+  "targ2": {
     "category": "FemaleTerms",
     "examples": [
       "This is a sister.",

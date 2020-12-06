@@ -9,7 +9,7 @@ class DebiasingPCA:
 
     def __init__(self, n_components):
         self.n_components = n_components
-        self.pca = None
+        self.pca = PCA(n_components=self.n_components)
 
     def fit(self, X, X_index):
         """Fit grouped samples in X to extract bias subspace.
@@ -23,7 +23,6 @@ class DebiasingPCA:
         """
         assert is_sorted(X_index)
         X_centered = self.center_linearly(X, X_index)
-        self.pca = PCA(n_components=self.n_components)
         self.pca.fit(X_centered)
 
     def debias(self, X):

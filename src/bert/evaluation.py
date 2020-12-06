@@ -105,17 +105,19 @@ class ScoreComputer:
         self.male_embeddings = male_embeddings
         self.female_embeddings = female_embeddings
 
+    def load_original_seat(self):
+        self.male_embeddings = self.get_dict_embeddings(6, "targ", 1)
+        self.female_embeddings = self.get_dict_embeddings(6, "targ", 2)
+
     def compute_score(self, i, metric="cosine"):
-        # attribute_1 = self.get_dict_embeddings(i, "attr", 1)
-        # attribute_2 = self.get_dict_embeddings(i, "attr", 2)
         if self.male_embeddings is None:
             raise AttributeError("Embeddings for evaluation not loaded. Run read_text_example or load_text_example "
                                  "first")
-        target_1 = self.get_dict_embeddings(i, "targ", 1)
-        target_2 = self.get_dict_embeddings(i, "targ", 2)
+        target_1 = self.get_dict_embeddings(i, "attr", 1)
+        target_2 = self.get_dict_embeddings(i, "attr", 2)
 
-        score_target_1 = score(target_1, self.male_embeddings, self.female_embeddings, metric)
-        score_target_2 = score(target_2, self.male_embeddings, self.female_embeddings, metric)
+        score_target_1 = score(self.male_embeddings, target_1,target_2, metric)
+        score_target_2 = score( self.female_embeddings, target_1, target_2, metric)
         return (np.mean(score_target_1) - np.mean(score_target_2)) / np.std(
             np.concatenate([score_target_1, score_target_2]))
 
@@ -135,11 +137,10 @@ def male_female_forward_pass(data_loader, model, batch_size, device):
     try:
         for n, el in enumerate(data_loader.train_loader):
             # TODO: add normalization
-            male_embedding = model.forward(**el["male"])[1].detach()
-            female_embedding = model.forward(**el["female"])[1].detach()
-            result_array_male[n*batch_size:(n +1)* batch_size] = male_embedding.cpu().numpy()
-            result_array_female[n*batch_size:(n+1) * batch_size] = female_embedding.cpu().numpy()
-            mean_difference = mean_difference * n / (n + 1) + (male_embedding - female_embedding).mean(0) / (n + 1)
+            male_embedding = model.forward(**el["male"])[1].detach().cpu().numpy()
+            female_embedding = model.forward(**el["female"])[1].detach().cpu().numpy()
+            result_array_male[n*batch_size:(n +1)* batch_size] = normalize(male_embedding)
+            result_array_female[n*batch_size:(n+1) * batch_size] = normalize(female_embedding)
     except IndexError or ValueError:
         # print(mean_difference)
         print("finish")

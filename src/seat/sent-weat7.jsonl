@@ -1,5 +1,5 @@
 {
-  "targ1": {
+  "attr1": {
     "category": "Math",
     "examples": [
 	"This is math.",
@@ -76,7 +76,7 @@
 	"Additions are things."
     ]
   },
-  "targ2": {
+  "attr2": {
     "category": "Arts",
     "examples": [
 	"This is poetry.",
@@ -153,7 +153,7 @@
 	"Sculptures are things."
     ]
   },
-  "attr1": {
+  "targ1": {
     "category": "MaleTerms",
     "examples": [
 	"This is a male.",
@@ -238,7 +238,7 @@
 	"Sons are people."
     ]
   },
-  "attr2": {
+  "targ2": {
     "category": "FemaleTerms",
     "examples": [
 	"This is a female.",
