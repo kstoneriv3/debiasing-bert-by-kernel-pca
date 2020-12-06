@@ -76,11 +76,7 @@ class TorchDebiasingKernelPCA:
     ------
     The design of this class is based on the sklearn.decomposition.KernelPCA.
     """
-<<<<<<< HEAD
     def __init__(self, n_components=2, *, kernel=TorchRBF):
-=======
-    def __init__(self, n_components, *, kernel=TorchRBF):
->>>>>>> 2055f2a8e8417fbece949842fafe25a81c68009b
         self.n_components = n_components
         self.kernel = self.add_autoreshape(kernel)
         self.X_fit_ = None
@@ -189,7 +185,7 @@ class TorchDebiasingKernelPCA:
         return ret
         
         
-    def orth_losses(self, X, X_orth):
+    def orth_losses(self, X, X_orth, alpha):
         
         n_samples, n_features = X.shape
         n_train = self.X_fit_.shape[0]
@@ -197,7 +193,7 @@ class TorchDebiasingKernelPCA:
         X_fit_ = self.X_fit_
         DX_fit_ = self.DX_fit_
         alphas = self.alphas_
-        lambdas_inv = torch.diag(1. / self.lambdas_)
+        lambdas_inv = 1. / self.lambdas_
         
         Koo = self.kernel(X_orth, autoreshape=False)
         Kox = self.kernel(X_orth, X, autoreshape=False)
@@ -206,26 +202,23 @@ class TorchDebiasingKernelPCA:
         KPx = torch.sparse.mm(self.DX_fit_, self.kernel(X_fit_, X))
         B = self.alphas_.transpose(0,1).mm(KPx)#; del KPx
         
-        losses = Koo - 2. * Kox + 2. * A.mm(lambdas_inv).mm(B)
+        losses = (1. + alpha) * (Koo - 2. * Kox) + 2. * torch.einsum('ij, j, ji->i', A, lambdas_inv, B)
+        losses /= (1. + alpha)
         return losses
         
         
-<<<<<<< HEAD
-    def debias(self, X, n_iter=30, lr=0.03):
-=======
-    def debias(self, X, n_iter=30, lr=0.01):
->>>>>>> 2055f2a8e8417fbece949842fafe25a81c68009b
+    def debias(self, X, n_iter=30, lr=0.2, alpha=0.):
         """Debias the embeddings by reprojection of kernel PCA.
         
         Parameters
         ----------
         X: array [n_samples, n_features]
-        method: "ridge" or "optimization"
-            When the "ridge" is used, kernel ridge regression is used to approximate the pre-imaging. 
-            For details, see the reference. When the "optimization" is used, optimization is used to 
-            obtain the pre-image. In this case, the kernel must support the option `torch=True` so 
-            that gradient-based optimization can be applied.
-            
+        n_iter: integer
+            The number of optimization steps.
+        lr: float
+            The learning rate of the gradient descent optimizer.
+        alpha: float
+            The regularization constant which control how close the debiased embeddings are to their original.
         References
         ----------
         "Learning to Find Pre-Images", G BakIr et al, 2004.
@@ -238,7 +231,7 @@ class TorchDebiasingKernelPCA:
         optimizer, = torch.optim.SGD(lr=lr, momentum=0, params=[X_orth]), 
         for i in range(n_iter):
             optimizer.zero_grad()
-            losses = self.orth_losses(X, X_orth)
+            losses = self.orth_losses(X, X_orth, alpha)
             loss = torch.sum(losses)
             loss.backward()
             optimizer.step()
