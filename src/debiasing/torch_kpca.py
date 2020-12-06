@@ -13,10 +13,16 @@ DTYPE = torch.float64
 DEVICE = torch.device('cuda')  # 6.7x speed up by gpu
 #DEVICE = torch.device('cpu')
 
-# gamma=0.14 seems to work well for the BERT embeddings.
-def TorchRBF(X, Y, gamma=0.14):
+# gamma=0.024 seems to work well for the BERT embeddings.
+def TorchRBF(X, Y, gamma=0.024):
     gamma = 1. / X.shape[-1] if (gamma is None) else gamma
     K = torch.exp( - gamma * torch.sum((X - Y)**2, axis=-1))
+    return K
+
+# gamma=0.017 seems to work well for the BERT embeddings.
+def TorchLaplace(X, Y, gamma=0.017):
+    gamma = 1. / X.shape[-1] if (gamma is None) else gamma
+    K = torch.exp( - gamma * torch.sum(torch.abs(X - Y), axis=-1))
     return K
 
 class TorchDebiasingKernelPCA:
@@ -207,7 +213,7 @@ class TorchDebiasingKernelPCA:
         return losses
         
         
-    def debias(self, X, n_iter=30, lr=0.2, alpha=0.):
+    def debias(self, X, n_iter=30, lr=0.4, alpha=0.):
         """Debias the embeddings by reprojection of kernel PCA.
         
         Parameters
