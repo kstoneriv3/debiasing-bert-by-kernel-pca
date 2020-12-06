@@ -8,7 +8,7 @@ from sklearn.utils.validation import _check_psd_eigenvalues
 from src.debiasing.utils import get_design_matrix, is_sorted
 
 
-class DebiasingKernelPCA:
+class NumpyDebiasingKernelPCA:
     """Kernel PCA with mean-centering in feature space within each group.
     
     The design of this class is mostly based on sklearn.decomposition.KernelPCA.  
@@ -265,6 +265,7 @@ def _centered_kernel(X, X_index=None, Y=None, Y_index=None, kernel="linear", fil
     DX = get_design_matrix(X_index)
     DY = get_design_matrix(Y_index)
 
+    # Though sparse matrix is used, the complexity is not reduced unfortunately.
     KXY_centered = DX @ KXY @ DY
     return KXY_centered
 
