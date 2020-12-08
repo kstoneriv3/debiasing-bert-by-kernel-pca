@@ -36,6 +36,7 @@ class GenericDataLoader:
     def __init__(self, dataset,
                  batch_size=1,
                  validation_split=0,
+                 validation_data=None,
                  shuffle_for_split=False,
                  random_seed_split=0):
         """
@@ -49,6 +50,7 @@ class GenericDataLoader:
                 Both self.train_loader and self.val_loader are initialized
         """
         self.dataset = dataset
+        self.validation_data = validation_data
         self.batch_size = batch_size
 
         # case no validation set
@@ -63,17 +65,31 @@ class GenericDataLoader:
 
         # case training/validation set split
         else:
-            indices = np.arange(len(dataset))
-            if shuffle_for_split:
-                np.random.seed(random_seed_split)
+            if validation_data is None:
+                indices = np.arange(len(dataset))
+                if shuffle_for_split:
+                    np.random.seed(random_seed_split)
+                    indices = np.random.permutation(indices)
+                split = int(np.floor(validation_split * len(dataset)))
+                train_sampler = SequentialSampler(indices[split:])
+                val_sampler = SequentialSampler(indices[:split])
+                self.train_loader = DataLoader(
+                    self.dataset, batch_size, sampler=train_sampler, drop_last=True)
+                self.val_loader = DataLoader(
+                    self.dataset, batch_size, sampler=val_sampler, drop_last=True)
+            else:
+                indices = np.arange(len(dataset))
                 indices = np.random.permutation(indices)
-            split = int(np.floor(validation_split * len(dataset)))
-            train_sampler = SequentialSampler(indices[split:])
-            val_sampler = SequentialSampler(indices[:split])
-            self.train_loader = DataLoader(
-                self.dataset, batch_size, sampler=train_sampler, drop_last=True)
-            self.val_loader = DataLoader(
-                self.dataset, batch_size, sampler=val_sampler, drop_last=True)
+                val_indices = np.arange(len(validation_data))
+                val_indices = np.random.permutation(val_indices)
+                train_sampler = SequentialSampler(indices)
+                val_sampler = SequentialSampler(val_indices)
+                self.train_loader = DataLoader(
+                    self.dataset, batch_size, sampler=train_sampler, drop_last=True
+                )
+                self.val_loader = DataLoader(
+                    self.validation_data, batch_size, sampler=val_sampler, drop_last=True
+                )
 
 
 class TokenizeDataset(dataset.Dataset):
@@ -101,7 +117,7 @@ class TokenizeDataset(dataset.Dataset):
         self.pattern_muslim = re.compile(r'|'.join(map(r'(?:\b{}\b)'.format, all_pats_muslim)))
         self.pattern_jew = re.compile(r'|'.join(map(r'(?:\b{}\b)'.format, all_pats_jew)))
 
-        all_pats_career = ["careers""career","businesses","business","executive", "management", "professional",
+        all_pats_career = ["careers""career", "businesses", "business", "executive", "management", "professional",
                            "corporation", "salary", "salaries", "office", "offices"]
         all_pats_home = ["relative", "relatives", "home", "parent", "parents", "child", "children", "family", "cousin",
                          "cousins", "marriage", "marriages", "weddings"]
@@ -109,8 +125,8 @@ class TokenizeDataset(dataset.Dataset):
         self.pattern_career = re.compile(r'|'.join(map(r'(?:\b{}\b)'.format, all_pats_career)))
         self.pattern_home = re.compile(r'|'.join(map(r'(?:\b{}\b)'.format, all_pats_home)))
         # TODO: arbitrary removed numbers
-        all_pats_math = ["math","algebra","geometry","calculus","equation", "computation"]
-                           # "addition", "additions"]
+        all_pats_math = ["math", "algebra", "geometry", "calculus", "equation", "computation"]
+        # "addition", "additions"]
         all_pats_arts = ["poetry", "art", "dance", "dances", "literature", "novel", "novels", "symphony", "symphonies",
                          "drama", "dramas", "sculpture", "sculptures"]
 
@@ -232,36 +248,16 @@ class CoLAData(TokenizeDataset):
         }
 
 
-class NewsData(TokenizeDataset):
+class CoLADataStandard(TokenizeDataset):
     def __init__(self, **kwargs):
-        super(NewsData, self).__init__(**kwargs)
-
-    def _read_tsv(self):
-        tsv_file = open(self.data_path, encoding="utf8")
-        tsv_reader = csv.reader(tsv_file, delimiter=",")
-        tsv_reader.__next__()
-        lines = []
-        for line in tsv_reader:
-            text = line[2]
-            text = text[text.find("-")+1:]
-            text = text.split(".")[0]
-            line[2]=re.sub(r"[^a-zA-Z0-9,.]+", ' ',text)
-            lines.append(line)
-        return lines
+        super(CoLADataStandard, self).__init__(**kwargs)
 
     def __getitem__(self, item):
-        self.item_current = max(self.item_current, item)
-        indicator = 0
-        while indicator == 0:
-            original, male, female, indicator = self.replace_gender_in_text(self.data[self.item_current][-1].lower())
-            # self.find_career_in_text(self.data[self.item_current][-1].lower())
-            self.item_current += 1
-
         return {
-            "label": self.data[item][1],
-            "female": self.tokenize_text(female),
-            "male": self.tokenize_text(male),
+            "data": self.tokenize_text(self.data[item][-1].lower()),
+            "label": int(self.data[item][1]),
         }
+
 
 class QNLData(TokenizeDataset):
     def __init__(self, **kwargs):
@@ -285,6 +281,27 @@ class QNLData(TokenizeDataset):
         }
 
 
+def label_translator(label):
+    if label == "entailment":
+        return 1
+    elif label == "not_entailment":
+        return 0
+    else:
+        raise ValueError("Unknown label type for dataset")
+
+
+class QNLDataStandard(TokenizeDataset):
+    def __init__(self, **kwargs):
+        super(QNLDataStandard, self).__init__(**kwargs)
+
+    def __getitem__(self, item):
+        return {
+            "data": self.tokenize_text(self.data[item][1].lower()),
+            "answer": self.tokenize_text(self.data[item][2].lower()),
+            "label": label_translator(self.data[item][3]),
+        }
+
+
 class SST2Data(TokenizeDataset):
     def __init__(self, **kwargs):
         super(SST2Data, self).__init__(**kwargs)
@@ -300,6 +317,49 @@ class SST2Data(TokenizeDataset):
             "label": self.data[item][-1],
             "male": self.tokenize_text(male),
             "female": self.tokenize_text(female)
+        }
+
+
+class SST2DataStandard(TokenizeDataset):
+    def __init__(self, **kwargs):
+        super(SST2DataStandard, self).__init__(**kwargs)
+
+    def __getitem__(self, item):
+        return {
+            "data": self.tokenize_text(self.data[item][0].lower()),
+            "label": int(self.data[item][-1]),
+        }
+
+
+class NewsData(TokenizeDataset):
+    def __init__(self, **kwargs):
+        super(NewsData, self).__init__(**kwargs)
+
+    def _read_tsv(self):
+        tsv_file = open(self.data_path, encoding="utf8")
+        tsv_reader = csv.reader(tsv_file, delimiter=",")
+        tsv_reader.__next__()
+        lines = []
+        for line in tsv_reader:
+            text = line[2]
+            text = text[text.find("-") + 1:]
+            text = text.split(".")[0]
+            line[2] = re.sub(r"[^a-zA-Z0-9,.]+", ' ', text)
+            lines.append(line)
+        return lines
+
+    def __getitem__(self, item):
+        self.item_current = max(self.item_current, item)
+        indicator = 0
+        while indicator == 0:
+            original, male, female, indicator = self.replace_gender_in_text(self.data[self.item_current][-1].lower())
+            # self.find_career_in_text(self.data[self.item_current][-1].lower())
+            self.item_current += 1
+
+        return {
+            "label": self.data[item][1],
+            "female": self.tokenize_text(female),
+            "male": self.tokenize_text(male),
         }
 
 
@@ -367,14 +427,14 @@ class QNLDataReligion(TokenizeDataset):
         }
 
 
-def load_from_database(data_path,data_name):
+def load_from_database(data_path, data_name):
     f = h5py.File(data_path + '/data_out.h5', 'r')
     female_embeddings = f["female_embeddings_{}".format(data_name)][:]
     male_embeddings = f["male_embeddings_{}".format(data_name)][:]
-    return male_embeddings,female_embeddings
+    return male_embeddings, female_embeddings
 
 
-def select_data_set(data_name,tokenizer,data_path,mode):
+def select_data_set(data_name, tokenizer, data_path, mode):
     if data_name == "CoLA":
         dataset = CoLAData(tokenizer=tokenizer,
                            data_path=data_path + "CoLA/{}.tsv".format(mode))
@@ -389,6 +449,27 @@ def select_data_set(data_name,tokenizer,data_path,mode):
             tokenizer=tokenizer,
             data_path=data_path + "AGNews/{}.csv".format(mode),
         )
+    else:
+        raise NotImplementedError
+
+    return dataset
+
+
+def select_data_set_standard(data_name, tokenizer, data_path, mode):
+    if data_name == "CoLA":
+        dataset = CoLADataStandard(tokenizer=tokenizer,
+                                   data_path=data_path + "CoLA/{}.tsv".format(mode))
+    elif data_name == "QNLI":
+        dataset = QNLDataStandard(tokenizer=tokenizer,
+                                  data_path=data_path + "QNLI/{}.tsv".format(mode))
+    elif data_name == "SST2":
+        dataset = SST2DataStandard(tokenizer=tokenizer,
+                                   data_path=data_path + "SST-2/{}.tsv".format(mode))
+    # elif data_name == "AGNews":
+    #     dataset = NewsDataStandard(
+    #         tokenizer=tokenizer,
+    #         data_path=data_path + "AGNews/{}.csv".format(mode),
+    #     )
     else:
         raise NotImplementedError
 

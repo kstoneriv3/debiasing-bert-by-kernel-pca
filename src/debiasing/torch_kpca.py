@@ -11,19 +11,23 @@ from src.debiasing.numpy_kpca import _fix_index_if_none
 
 DTYPE = torch.float64
 DEVICE = torch.device('cuda')  # 6.7x speed up by gpu
-#DEVICE = torch.device('cpu')
+
+
+# DEVICE = torch.device('cpu')
 
 # gamma=0.024 seems to work well for the BERT embeddings.
 def TorchRBF(X, Y, gamma=0.024):
     gamma = 1. / X.shape[-1] if (gamma is None) else gamma
-    K = torch.exp( - gamma * torch.sum((X - Y)**2, axis=-1))
+    K = torch.exp(- gamma * torch.sum((X - Y) ** 2, axis=-1))
     return K
+
 
 # gamma=0.017 seems to work well for the BERT embeddings.
 def TorchLaplace(X, Y, gamma=0.017):
     gamma = 1. / X.shape[-1] if (gamma is None) else gamma
-    K = torch.exp( - gamma * torch.sum(torch.abs(X - Y), axis=-1))
+    K = torch.exp(- gamma * torch.sum(torch.abs(X - Y), axis=-1))
     return K
+
 
 class TorchDebiasingKernelPCA:
     """Kernel PCA with mean-centering in feature space within each group.
@@ -82,6 +86,7 @@ class TorchDebiasingKernelPCA:
     ------
     The design of this class is based on the sklearn.decomposition.KernelPCA.
     """
+
     def __init__(self, n_components=2, *, kernel=TorchRBF):
         self.n_components = n_components
         self.kernel = self.add_autoreshape(kernel)
@@ -90,7 +95,7 @@ class TorchDebiasingKernelPCA:
         self.alphas_ = None
         self.lambdas_ = None
 
-    @staticmethod 
+    @staticmethod
     def add_autoreshape(kernel):
         def new_kernel(X, Y=None, autoreshape=True):
             Y = X if Y is None else Y
@@ -98,8 +103,9 @@ class TorchDebiasingKernelPCA:
                 return kernel(X[:, None, :], Y[None, :, :])
             else:
                 return kernel(X, Y)
+
         return new_kernel
-        
+
     def fit(self, X, X_index=None):
         """Fit grouped samples in X to extract bias subspace.
 
@@ -121,10 +127,10 @@ class TorchDebiasingKernelPCA:
         DX = get_design_matrix(X_index)
         DX = _to_torch_sparse(DX)
         K = self.kernel(X)
-        
+
         K = torch.sparse.mm(DX, torch.sparse.mm(DX, K).transpose(0, 1))
         K = K.detach().cpu().numpy()
-        
+
         if self.n_components is None:
             n_components = K.shape[0]
         else:
@@ -135,10 +141,10 @@ class TorchDebiasingKernelPCA:
             # initialize with [-1,1] as in ARPACK
             v0 = np.random.RandomState(0).uniform(-1, 1, K.shape[0])
             self.lambdas_, self.alphas_ = scipy.sparse.linalg.eigsh(K, n_components,
-                                                which="LA",
-                                                tol=0,
-                                                maxiter=None,
-                                                v0=v0)
+                                                                    which="LA",
+                                                                    tol=0,
+                                                                    maxiter=None,
+                                                                    v0=v0)
         else:
             self.lambdas_, self.alphas_ = scipy.linalg.eigh(
                 K, eigvals=(K.shape[0] - n_components, K.shape[0] - 1))
@@ -161,16 +167,15 @@ class TorchDebiasingKernelPCA:
         if sum(mask_non_zero) < self.n_components:
             print("The effective number of the components was smaller than the given `n_components`."
                   "Please be careful about the dimension of the tranformed feature, as it is smaller than `n_components`.")
-        
+
         self.alphas_ = torch.tensor(self.alphas_[:, mask_non_zero], dtype=DTYPE, device=DEVICE)
         self.lambdas_ = torch.tensor(self.lambdas_[mask_non_zero], dtype=DTYPE, device=DEVICE)
-        
+
         self.X_fit_ = X
         self.DX_fit_ = DX
-        
+
         return self
 
-       
     def transform(self, X):
         """Transform X.
         
@@ -184,35 +189,33 @@ class TorchDebiasingKernelPCA:
         """
         assert self.X_fit_ is not None  # Fit the model first before using this method!
         X = torch.tensor(X, dtype=DTYPE, device=DEVICE)
-        K = torch.sparse.mm(self.DX_fit_, self.kernel(self.X_fit_, X)).transpose(0,1)
-        X_transformed =  K.mm(self.alphas_).mm(torch.diag(1. / torch.sqrt(self.lambdas_)))
+        K = torch.sparse.mm(self.DX_fit_, self.kernel(self.X_fit_, X)).transpose(0, 1)
+        X_transformed = K.mm(self.alphas_).mm(torch.diag(1. / torch.sqrt(self.lambdas_)))
         ret = X_transformed.detach().cpu().numpy()
         del X_transformed
         return ret
-        
-        
+
     def orth_losses(self, X, X_orth, alpha):
-        
+
         n_samples, n_features = X.shape
         n_train = self.X_fit_.shape[0]
-        
+
         X_fit_ = self.X_fit_
         DX_fit_ = self.DX_fit_
         alphas = self.alphas_
         lambdas_inv = 1. / self.lambdas_
-        
+
         Koo = self.kernel(X_orth, autoreshape=False)
         Kox = self.kernel(X_orth, X, autoreshape=False)
-        KoP = torch.sparse.mm(self.DX_fit_, self.kernel(X_fit_, X_orth)).transpose(0,1)
-        A = KoP.mm(alphas)#; del KoP
+        KoP = torch.sparse.mm(self.DX_fit_, self.kernel(X_fit_, X_orth)).transpose(0, 1)
+        A = KoP.mm(alphas)  # ; del KoP
         KPx = torch.sparse.mm(self.DX_fit_, self.kernel(X_fit_, X))
-        B = self.alphas_.transpose(0,1).mm(KPx)#; del KPx
-        
+        B = self.alphas_.transpose(0, 1).mm(KPx)  # ; del KPx
+
         losses = (1. + alpha) * (Koo - 2. * Kox) + 2. * torch.einsum('ij, j, ji->i', A, lambdas_inv, B)
         losses /= (1. + alpha)
         return losses
-        
-        
+
     def debias(self, X, n_iter=30, lr=0.4, alpha=0.):
         """Debias the embeddings by reprojection of kernel PCA.
         
@@ -230,20 +233,20 @@ class TorchDebiasingKernelPCA:
         "Learning to Find Pre-Images", G BakIr et al, 2004.
         """
         assert self.X_fit_ is not None  # Fit the model first before using this method!
-        
+
         X = torch.tensor(X, dtype=DTYPE, device=DEVICE)
         X_orth = torch.tensor(X, dtype=DTYPE, device=DEVICE, requires_grad=True)
-        
-        optimizer, = torch.optim.SGD(lr=lr, momentum=0, params=[X_orth]), 
+
+        optimizer, = torch.optim.SGD(lr=lr, momentum=0, params=[X_orth]),
         for i in range(n_iter):
             optimizer.zero_grad()
             losses = self.orth_losses(X, X_orth, alpha)
             loss = torch.sum(losses)
             loss.backward()
             optimizer.step()
-        
+
         return X_orth.detach().cpu().numpy()
-    
+
     def __del__(self):
         del self.kernel
         del self.X_fit_
@@ -264,4 +267,3 @@ def _to_torch_sparse(M):
     shape = torch.Size(M.shape)
     M_torch = torch.sparse_coo_tensor(indices, values, shape, device=DEVICE)
     return M_torch
-

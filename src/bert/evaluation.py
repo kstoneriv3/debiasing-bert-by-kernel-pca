@@ -1,7 +1,11 @@
-import numpy as np
 import h5py
-import torch
 import json
+import time
+import os
+import numpy as np
+import torch
+import torch.nn as nn
+from torch.utils.tensorboard import SummaryWriter
 from sklearn.preprocessing import normalize
 
 
@@ -116,8 +120,8 @@ class ScoreComputer:
         target_1 = self.get_dict_embeddings(i, "attr", 1)
         target_2 = self.get_dict_embeddings(i, "attr", 2)
 
-        score_target_1 = score(self.male_embeddings, target_1,target_2, metric)
-        score_target_2 = score( self.female_embeddings, target_1, target_2, metric)
+        score_target_1 = score(self.male_embeddings, target_1, target_2, metric)
+        score_target_2 = score(self.female_embeddings, target_1, target_2, metric)
         return (np.mean(score_target_1) - np.mean(score_target_2)) / np.std(
             np.concatenate([score_target_1, score_target_2]))
 
@@ -130,26 +134,87 @@ class ScoreComputer:
 
 
 def male_female_forward_pass(data_loader, model, batch_size, device):
-    mean_difference = torch.zeros(768, device=device)
-    result_array_male = np.empty((len(data_loader.train_loader)*batch_size, 768), dtype=float)
-    result_array_female = np.empty((len(data_loader.train_loader)*batch_size, 768), dtype=float)
+    result_array_male = np.empty((len(data_loader.train_loader) * batch_size, 768), dtype=float)
+    result_array_female = np.empty((len(data_loader.train_loader) * batch_size, 768), dtype=float)
 
     try:
         for n, el in enumerate(data_loader.train_loader):
             # TODO: add normalization
             male_embedding = model.forward(**el["male"])[1].detach().cpu().numpy()
             female_embedding = model.forward(**el["female"])[1].detach().cpu().numpy()
-            result_array_male[n*batch_size:(n +1)* batch_size] = normalize(male_embedding)
-            result_array_female[n*batch_size:(n+1) * batch_size] = normalize(female_embedding)
+            result_array_male[n * batch_size:(n + 1) * batch_size] = normalize(male_embedding)
+            result_array_female[n * batch_size:(n + 1) * batch_size] = normalize(female_embedding)
     except IndexError or ValueError:
         # print(mean_difference)
         print("finish")
-    result_array_female= result_array_female[: np.where(result_array_female[:, 0] == 0)[0][0]]
-    result_array_male= result_array_male[: np.where(result_array_male[:, 0] == 0)[0][0]]
+
+    del el
+    torch.cuda.empty_cache()
+
+    result_array_female = result_array_female[: np.where(result_array_female[:, 0] == 0)[0][0]]
+    result_array_male = result_array_male[: np.where(result_array_male[:, 0] == 0)[0][0]]
     return result_array_female, result_array_male
 
 
-def prepare_pca_input(result_array_male,result_array_female):
+def prepare_pca_input(result_array_male, result_array_female):
     embeddings = np.concatenate([result_array_male, result_array_female])
     label_index = np.concatenate([np.zeros(len(result_array_male)), np.ones(len(result_array_female))])
     return embeddings, label_index
+
+
+class DownstreamPipeline:
+    def __init__(self, data_loader, model, device, optimizer, epochs=100,experiment_name="set_up"):
+        self.train_loader = data_loader.train_loader
+        self.val_loader = data_loader.val_loader
+        self.model = model
+        self.device = device
+        self.model.to(device)
+        self.epochs = epochs
+        self.optimizer = optimizer
+        time_str = time.strftime("-%Y%m%d%H%M%S")
+        self.writer = SummaryWriter(os.path.join("./src/experiments/logs/",
+                                                 experiment_name + time_str))
+
+        self.total = None
+        self.correct = None
+
+    def train_step(self, batch_data):
+        self.model.train()
+        self.optimizer.zero_grad()
+        out = self.model(**batch_data["data"])
+        batch_data["label"]=batch_data["label"].to(self.device)
+        if self.model.classification_model.n_classes == 1:
+            loss = nn.BCELoss()(out, batch_data["label"].float().reshape(-1,1))
+        else:
+            loss = nn.CrossEntropyLoss()(out, batch_data["label"].float().reshape(-1,1))
+        loss.backward()
+        self.optimizer.step()
+        return loss
+
+    def val_step(self,batch_data):
+        self.model.eval()
+        with torch.no_grad:
+            output = self.model(**batch_data["data"])
+            batch_data["label"] = batch_data["label"].to(self.device)
+
+            self.total += batch_data["labels"].size(0)
+            self.correct += self.torch.sum(output == batch_data["label"].float().reshape(-1,1))
+
+    def train(self):
+        for epoch in range(self.epochs):
+            for batch_id, batch_data in enumerate(self.train_loader):
+                loss = self.train_step(batch_data)
+                self.writer.add_scalar(
+                    'loss/training',
+                    loss,
+                    epoch * len(self.train_loader) + batch_id
+                )
+            self.total = 0
+            self.correct = 0
+            for batch_id, batch_data in enumerate(self.val_loader):
+                self.val_step(batch_data)
+                self.writer.add_scalar(
+                    'val/accuracy',
+                    self.correct/self.total,
+                    epoch * len(self.val_loader) + batch_id
+                )
