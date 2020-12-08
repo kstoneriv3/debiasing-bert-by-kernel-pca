@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 from sklearn.preprocessing import normalize
+import scipy.stats as stats
 
 
 def female_male_saving(male_array, female_array, data_path, data_name):
@@ -125,6 +126,21 @@ class ScoreComputer:
         return (np.mean(score_target_1) - np.mean(score_target_2)) / np.std(
             np.concatenate([score_target_1, score_target_2]))
 
+    def compute_permutation_score(self, i, metric="cosine"):
+        target_1 = self.get_dict_embeddings(i, "attr", 1)
+        target_2 = self.get_dict_embeddings(i, "attr", 2)
+
+        score_target_1 = score(self.male_embeddings, target_1, target_2, metric)
+        score_target_2 = score(self.female_embeddings, target_1, target_2, metric)
+        permute = np.random.choice((-1, 1), len(score_target_1) * 10000, replace=True).reshape(-1, 10000)
+        score_target_1_permute = np.multiply(np.transpose(permute), score_target_1)
+        score_target_2_permute = np.multiply(np.transpose(permute), score_target_2)
+        score_real = (np.mean(score_target_1) - np.mean(score_target_2)) / np.std(
+            np.concatenate([score_target_1, score_target_2]))
+        score_dist = np.mean(score_target_1_permute + score_target_2_permute, axis=1) / np.std(
+            np.concatenate([score_target_1_permute, score_target_2_permute], axis=1), axis=1)
+        return 1 - stats.percentileofscore(score_dist, score_real)/100
+
     def compute_all_metrics(self):
         for data in ["SST2", "CoLA", "QNLI"]:
             for i in [6, 7, 8]:
@@ -157,13 +173,15 @@ def male_female_forward_pass(data_loader, model, batch_size, device):
 
 
 def prepare_pca_input(result_array_male, result_array_female):
-    embeddings = np.concatenate([result_array_male, result_array_female])
-    label_index = np.concatenate([np.zeros(len(result_array_male)), np.ones(len(result_array_female))])
+    embeddings = np.zeros((result_array_male.shape[0] + result_array_female.shape[0], result_array_male.shape[1]))
+    embeddings[::2] = result_array_male
+    embeddings[1::2] = result_array_female
+    label_index = np.repeat(np.arange(len(result_array_male)), 2)
     return embeddings, label_index
 
 
 class DownstreamPipeline:
-    def __init__(self, data_loader, model, device, optimizer, epochs=100,experiment_name="set_up"):
+    def __init__(self, data_loader, model, device, optimizer, epochs=100, experiment_name="set_up"):
         self.train_loader = data_loader.train_loader
         self.val_loader = data_loader.val_loader
         self.model = model
@@ -182,23 +200,23 @@ class DownstreamPipeline:
         self.model.train()
         self.optimizer.zero_grad()
         out = self.model(**batch_data["data"])
-        batch_data["label"]=batch_data["label"].to(self.device)
+        batch_data["label"] = batch_data["label"].to(self.device)
         if self.model.classification_model.n_classes == 1:
-            loss = nn.BCELoss()(out, batch_data["label"].float().reshape(-1,1))
+            loss = nn.BCELoss()(out, batch_data["label"].float().reshape(-1, 1))
         else:
-            loss = nn.CrossEntropyLoss()(out, batch_data["label"].float().reshape(-1,1))
+            loss = nn.CrossEntropyLoss()(out, batch_data["label"].float().reshape(-1, 1))
         loss.backward()
         self.optimizer.step()
         return loss
 
-    def val_step(self,batch_data):
+    def val_step(self, batch_data):
         self.model.eval()
         with torch.no_grad:
             output = self.model(**batch_data["data"])
             batch_data["label"] = batch_data["label"].to(self.device)
 
             self.total += batch_data["labels"].size(0)
-            self.correct += self.torch.sum(output == batch_data["label"].float().reshape(-1,1))
+            self.correct += self.torch.sum(output == batch_data["label"].float().reshape(-1, 1))
 
     def train(self):
         for epoch in range(self.epochs):
@@ -215,6 +233,6 @@ class DownstreamPipeline:
                 self.val_step(batch_data)
                 self.writer.add_scalar(
                     'val/accuracy',
-                    self.correct/self.total,
+                    self.correct / self.total,
                     epoch * len(self.val_loader) + batch_id
                 )

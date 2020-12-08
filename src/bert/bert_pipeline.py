@@ -51,6 +51,7 @@ def evaluation_gender_run():
     model = EmbeddingModel("bert-base-uncased", batch_size=BATCHSIZE, device=device)
     compute_score = ScoreComputer(tokenizer, model, BATCHSIZE, device)
 
+
     # Compute embeddings for the train dataset
     dataset = select_data_set(data_name=args.data_name, tokenizer=tokenizer, data_path=args.data_path, mode="train")
     data_loader = GenericDataLoader(dataset, validation_split=0, batch_size=BATCHSIZE)
@@ -59,18 +60,20 @@ def evaluation_gender_run():
     # Score BERT for the train dataset
     compute_score.read_text_example(result_array_male, result_array_female)
     print("My Score train:", compute_score.compute_score(7, "cosine"), compute_score.compute_score(7, "gaus"))
+    print("permutation score p-values:",compute_score.compute_permutation_score(6,"gaus"))
 
     # Score BERT for the original examples
     compute_score.load_original_seat()
     print("Original metric train:", compute_score.compute_score(7, "cosine"),
           compute_score.compute_score(7, "gaus"))
+    print("permutation score p-values:",compute_score.compute_permutation_score(6,"gaus"))
 
     # Train the debiasing algorithm
     del model
     torch.cuda.empty_cache()
 
-    debias = TorchDebiasingKernelPCA(5)
-    embeddings, label_index = prepare_pca_input(result_array_male[:100], result_array_female[:100])
+    debias = DebiasingPCA(1)
+    embeddings, label_index = prepare_pca_input(result_array_male, result_array_female)
     debias.fit(embeddings, label_index)
 
     # Debias train embeddings
@@ -79,6 +82,7 @@ def evaluation_gender_run():
     # Compute scores of debiased embeddings
     compute_score.read_text_example(debiased_embeddings[label_index == 0], debiased_embeddings[label_index == 1])
     print("My score debias train:", compute_score.compute_score(7, "cosine"), compute_score.compute_score(7, "gaus"))
+    print("permutation score p-values:",compute_score.compute_permutation_score(6,"gaus"))
 
     # Compute score of original metric after debiasing
     compute_score.load_original_seat()
@@ -86,6 +90,7 @@ def evaluation_gender_run():
     compute_score.female_embeddings = debias.debias(compute_score.female_embeddings)
     print("original metric debias:", compute_score.compute_score(7, "cosine"),
           compute_score.compute_score(7, "gaus"))
+    print("permutation score p-values:",compute_score.compute_permutation_score(6,"gaus"))
 
     # Analyze results on the test dataset
     model = EmbeddingModel("bert-base-uncased", batch_size=BATCHSIZE, device=device)
@@ -96,11 +101,13 @@ def evaluation_gender_run():
 
     compute_score.read_text_example(result_array_male, result_array_female)
     print("Original score test:", compute_score.compute_score(7, "cosine"), compute_score.compute_score(7, "gaus"))
+    print("permutation score p-values:",compute_score.compute_permutation_score(6,"gaus"))
 
     embeddings, label_index = prepare_pca_input(result_array_male, result_array_female)
     debiased_embeddings = debias.debias(embeddings)
     compute_score.read_text_example(debiased_embeddings[label_index == 0], debiased_embeddings[label_index == 1])
     print("Debiased score test:", compute_score.compute_score(7, "cosine"), compute_score.compute_score(7, "gaus"))
+    print("permutation score p-values:",compute_score.compute_permutation_score(6,"gaus"))
 
 
 def downstream_pipeline():
@@ -143,5 +150,5 @@ if __name__ == "__main__":
     parser.add_argument('--data-name', default="QNLI", type=str, required=False)
     parser.add_argument('--out-path', default="./data/", type=str, required=False)
     args = parser.parse_args()
-    # evaluation_gender_run()
-    downstream_pipeline()
+    evaluation_gender_run()
+    # downstream_pipeline()
