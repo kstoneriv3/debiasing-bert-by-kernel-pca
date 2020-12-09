@@ -199,7 +199,7 @@ def downstream_pipeline():
 
     data_loader = GenericDataLoader(dataset_train, validation_data=dataset_test, batch_size=BATCHSIZE)
     optimizer = torch.optim.Adam(classifier_model.parameters())
-    trainer = DownstreamPipeline(model=model, data_loader=data_loader, device=device, optimizer=optimizer)
+    trainer = DownstreamPipeline(model=model, data_loader=data_loader, device=device, optimizer=optimizer,epochs=10)
     trainer.train()
 
 
