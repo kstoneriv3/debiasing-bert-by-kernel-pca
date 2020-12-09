@@ -1,10 +1,13 @@
 import argparse
+import sys
 from transformers import BertTokenizer
+sys.path.append("/cluster/home/vbardenha/deepl-disentangle/")
 from src.bert.dataloader import GenericDataLoader, NewsData, QNLData, CoLAData, SST2Data, CoLADataReligion, \
     QNLDataReligion
 from src.bert.models import EmbeddingModel, ClassificationHead, ClassificationModel
 import torch
 import pandas as pd
+
 
 from src.bert.evaluation import female_male_saving, female_male_dataset_creation, ScoreComputer
 from src.bert.dataloader import load_from_database, select_data_set, select_data_set_standard
@@ -226,7 +229,7 @@ if __name__ == "__main__":
     parser.add_argument('--recompute', action="store_true")
 
     args = parser.parse_args()
-    establish_bias_baseline()
+    # establish_bias_baseline()
     # gender_example_creation()
     # evaluation_gender_run()
-    # downstream_pipeline()
+    downstream_pipeline()
