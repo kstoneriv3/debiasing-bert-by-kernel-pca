@@ -1,7 +1,7 @@
 import argparse
 import sys
 from transformers import BertTokenizer
-sys.path.append("/cluster/home/vbardenha/deepl-disentangle/")
+sys.path.append("/cluster/home/vbardenha/debiasing-sent/")
 from src.bert.dataloader import GenericDataLoader, NewsData, QNLData, CoLAData, SST2Data, CoLADataReligion, \
     QNLDataReligion
 from src.bert.models import EmbeddingModel, ClassificationHead, ClassificationModel
