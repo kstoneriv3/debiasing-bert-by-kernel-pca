@@ -7,38 +7,69 @@ import torch
 import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 from sklearn.preprocessing import normalize
+from sklearn.metrics.pairwise import euclidean_distances
 import scipy.stats as stats
 
 
-def female_male_saving(male_array, female_array, data_path, data_name):
-    max_written = np.where(female_array[:, 0] == 0)[0][0]
-    result_array_female = np.resize(female_array, (max_written, 768))
-    result_array_male = np.resize(male_array, (max_written, 768))
-
+def female_male_saving(male_array, female_array, data_path, data_name, mode="train"):
     h5f = h5py.File(data_path + 'data_out.h5', 'r+')
-    fem_data = h5f["female_embeddings_{}".format(data_name)]
-    fem_data[...] = result_array_female
-    male_data = h5f["male_embeddings_{}".format(data_name)]
-    male_data[...] = result_array_male
+    fem_data = h5f["female_embeddings_{}_{}".format(data_name, mode)]
+    fem_data[...] = female_array
+    male_data = h5f["male_embeddings_{}_{}".format(data_name, mode)]
+    male_data[...] = male_array
+    h5f.close()
+
+
+def female_male_dataset_creation(male_array, female_array, data_path, data_name, mode):
+    h5f = h5py.File(data_path + 'data_out.h5', 'a')
+    h5f.create_dataset("female_embeddings_{}_{}".format(data_name, mode), data=female_array)
+    h5f.create_dataset("male_embeddings_{}_{}".format(data_name, mode), data=male_array)
     h5f.close()
 
 
 def cosine_similarity(emb, el):
-    emb = normalize(emb)
-    el = normalize(el.reshape(-1, 1), axis=0).reshape(-1)
+    # emb = normalize(emb)
+    # el = normalize(el.reshape(-1, 1), axis=0).reshape(-1)
     return np.matmul(emb, el) / (np.linalg.norm(emb, axis=1) * np.linalg.norm(el))
 
 
-def rbf_similarity(emb, el, gamma=0.1):
-    emb = normalize(emb)
-    el = normalize(el.reshape(-1, 1), axis=0).reshape(-1)
+def full_cosine_similarity(emb, attribute_list):
+    return np.divide(np.matmul(emb, np.transpose(attribute_list)),
+                     (np.linalg.norm(emb, axis=1) * np.linalg.norm(attribute_list)).reshape(-1, 1))
+
+
+def rbf_similarity(emb, el, gamma=0.024):
+    # emb = normalize(emb)
+    # el = normalize(el.reshape(-1, 1), axis=0).reshape(-1)
     return np.exp(-gamma * np.sum(np.square(emb - el.reshape(1, -1)), axis=1))
+
+
+def full_rbf_similarity(emb, attribute_list, gamma=0.024):
+    return np.exp(-gamma * euclidean_distances(emb, attribute_list, squared=True))
 
 
 def sigmoid_similarity(emb, el, gamma=0.0001, c0=0):
     emb = normalize(emb)
     el = normalize(el.reshape(-1, 1), axis=0).reshape(-1)
     return np.tanh(gamma * np.matmul(emb, el) + c0)
+
+
+def full_sigmoid_similarity(emb, attribute_list, gamma=1 / 40, c0=-274):
+    return np.tanh(gamma * (np.matmul(emb, np.transpose(attribute_list)) + c0))
+
+
+def full_score(emb, attribute_list_a, attribute_list_b, metric):
+    if metric == "cosine":
+        similarity = full_cosine_similarity
+    elif metric == "gaus":
+        similarity = full_rbf_similarity
+    elif metric == "sigmoid":
+        similarity = full_sigmoid_similarity
+    else:
+        raise NotImplementedError
+    sim_score_a = np.mean(similarity(emb, attribute_list_a), axis=1)
+    sim_score_b = np.mean(similarity(emb, attribute_list_b), axis=1)
+    return sim_score_a - sim_score_b
 
 
 def score(emb, attribute_list_a, attribute_list_b, metric):
@@ -85,7 +116,7 @@ class ScoreComputer:
         return tokenized_sentence
 
     def read_json(self):
-        for i in [6, 7, 8]:
+        for i in [6, "6b", 7, "7b", 8, "8b"]:
             with open('./src/seat/sent-weat{}.jsonl'.format(i), ) as json_file:
                 self.main_dict[i] = json.load(json_file)
         print(self.main_dict)
@@ -110,9 +141,9 @@ class ScoreComputer:
         self.male_embeddings = male_embeddings
         self.female_embeddings = female_embeddings
 
-    def load_original_seat(self):
-        self.male_embeddings = self.get_dict_embeddings(6, "targ", 1)
-        self.female_embeddings = self.get_dict_embeddings(6, "targ", 2)
+    def load_original_seat(self, test):
+        self.male_embeddings = self.get_dict_embeddings(test, "targ", 1)
+        self.female_embeddings = self.get_dict_embeddings(test, "targ", 2)
 
     def compute_score(self, i, metric="cosine"):
         if self.male_embeddings is None:
@@ -121,25 +152,50 @@ class ScoreComputer:
         target_1 = self.get_dict_embeddings(i, "attr", 1)
         target_2 = self.get_dict_embeddings(i, "attr", 2)
 
-        score_target_1 = score(self.male_embeddings, target_1, target_2, metric)
-        score_target_2 = score(self.female_embeddings, target_1, target_2, metric)
-        return (np.mean(score_target_1) - np.mean(score_target_2)) / np.std(
-            np.concatenate([score_target_1, score_target_2]))
+        score_target_1 = full_score(self.male_embeddings, target_1, target_2, metric)
+        score_target_2 = full_score(self.female_embeddings, target_1, target_2, metric)
+        return (np.mean(score_target_1) - np.mean(score_target_2))
+
+    # def compute_permutation_difference_score(self, i, metric):
+    #     target_1 = self.get_dict_embeddings(i, "attr", 1)
+    #     target_2 = self.get_dict_embeddings(i, "attr", 2)
+    #     score_full = full_score(self.female_embeddings - self.male_embeddings, target_1, target_2, metric)
+    #     permute = np.random.choice((-1, 1), len(score_full) * 10000, replace=True).reshape(-1, 10000)
+    #     score_full_permute = np.multiply(np.transpose(permute), score_full)
+    #     score_full_permute = np.mean(score_full_permute, axis=1)
+    #     score_real = np.mean(score_full)
+    #     return stats.percentileofscore(score_full_permute, score_real) / 100
+
+    def compute_permutation_difference_score(self, i, metric):
+        target_1 = self.get_dict_embeddings(i, "attr", 1)
+        target_2 = self.get_dict_embeddings(i, "attr", 2)
+        score_real = np.nanmean(full_score(self.female_embeddings - self.male_embeddings, target_1, target_2, metric))
+        score_permute = np.zeros(1000)
+        score_permute[0] = score_real
+        for i in range(1, 1000):
+            permute = np.random.choice((-1, 1), len(self.female_embeddings), replace=True)
+            tmp_female = np.transpose(np.multiply(np.transpose(self.female_embeddings), permute))
+            tmp_male = np.transpose(np.multiply(np.transpose(self.male_embeddings), -permute))
+            score_permute[i] = np.nanmean(full_score(tmp_male - tmp_female, target_1, target_2, metric))
+
+        np.sum(score_permute >= score_real) / (len(score_permute))
+        np.sum(score_permute <= score_real) / (len(score_permute))
+
+        return min(np.sum(score_permute >= score_real) / len(score_permute),
+                   np.sum(score_permute <= score_real) / len(score_permute))
 
     def compute_permutation_score(self, i, metric="cosine"):
         target_1 = self.get_dict_embeddings(i, "attr", 1)
         target_2 = self.get_dict_embeddings(i, "attr", 2)
 
-        score_target_1 = score(self.male_embeddings, target_1, target_2, metric)
-        score_target_2 = score(self.female_embeddings, target_1, target_2, metric)
+        score_target_1 = full_score(self.male_embeddings, target_1, target_2, metric)
+        score_target_2 = full_score(self.female_embeddings, target_1, target_2, metric)
         permute = np.random.choice((-1, 1), len(score_target_1) * 10000, replace=True).reshape(-1, 10000)
         score_target_1_permute = np.multiply(np.transpose(permute), score_target_1)
         score_target_2_permute = np.multiply(np.transpose(permute), score_target_2)
-        score_real = (np.mean(score_target_1) - np.mean(score_target_2)) / np.std(
-            np.concatenate([score_target_1, score_target_2]))
-        score_dist = np.mean(score_target_1_permute + score_target_2_permute, axis=1) / np.std(
-            np.concatenate([score_target_1_permute, score_target_2_permute], axis=1), axis=1)
-        return 1 - stats.percentileofscore(score_dist, score_real)/100
+        score_real = (np.mean(score_target_1) - np.mean(score_target_2))
+        score_dist = np.mean(score_target_1_permute + score_target_2_permute, axis=1)
+        return 1 - stats.percentileofscore(score_dist, score_real) / 100
 
     def compute_all_metrics(self):
         for data in ["SST2", "CoLA", "QNLI"]:
@@ -158,8 +214,8 @@ def male_female_forward_pass(data_loader, model, batch_size, device):
             # TODO: add normalization
             male_embedding = model.forward(**el["male"])[1].detach().cpu().numpy()
             female_embedding = model.forward(**el["female"])[1].detach().cpu().numpy()
-            result_array_male[n * batch_size:(n + 1) * batch_size] = normalize(male_embedding)
-            result_array_female[n * batch_size:(n + 1) * batch_size] = normalize(female_embedding)
+            result_array_male[n * batch_size:(n + 1) * batch_size] = male_embedding
+            result_array_female[n * batch_size:(n + 1) * batch_size] = female_embedding
     except IndexError or ValueError:
         # print(mean_difference)
         print("finish")

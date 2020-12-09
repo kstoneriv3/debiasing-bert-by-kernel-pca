@@ -2,12 +2,14 @@ from transformers import BertModel
 import torch.nn as nn
 import torch
 
+
 class EmbeddingModel(nn.Module):
     def __init__(self, model_name, batch_size, device, tokenizer_max_length=50):
         super(EmbeddingModel, self).__init__()
         self.model_name = model_name
         self.batch_size = batch_size
         self.device = device
+
         self.embedding_model = BertModel.from_pretrained("bert-base-uncased")
         self.embedding_model.to(self.device)
         self.embedding_model.eval()

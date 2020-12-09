@@ -427,10 +427,10 @@ class QNLDataReligion(TokenizeDataset):
         }
 
 
-def load_from_database(data_path, data_name):
+def load_from_database(data_path, data_name,mode):
     f = h5py.File(data_path + '/data_out.h5', 'r')
-    female_embeddings = f["female_embeddings_{}".format(data_name)][:]
-    male_embeddings = f["male_embeddings_{}".format(data_name)][:]
+    female_embeddings = f["female_embeddings_{}_{}".format(data_name,mode)][:]
+    male_embeddings = f["male_embeddings_{}_{}".format(data_name,mode)][:]
     return male_embeddings, female_embeddings
 
 
