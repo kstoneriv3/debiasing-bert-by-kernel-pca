@@ -195,7 +195,7 @@ def downstream_pipeline():
     dataset_train = select_data_set_standard(data_name=args.data_name, tokenizer=tokenizer, data_path=args.data_path,
                                              mode="train")
     dataset_test = select_data_set_standard(data_name=args.data_name, tokenizer=tokenizer, data_path=args.data_path,
-                                            mode="test")
+                                            mode="dev")
 
     data_loader = GenericDataLoader(dataset_train, validation_data=dataset_test, batch_size=BATCHSIZE)
     optimizer = torch.optim.Adam(classifier_model.parameters())
@@ -224,7 +224,7 @@ if __name__ == "__main__":
     # parse arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--data-path', default="./data/", type=str, required=False)
-    parser.add_argument('--data-name', default="QNLI", type=str, required=False)
+    parser.add_argument('--data-name', default="CoLA", type=str, required=False)
     parser.add_argument('--out-path', default="./data/", type=str, required=False)
     parser.add_argument('--recompute', action="store_true")
 
