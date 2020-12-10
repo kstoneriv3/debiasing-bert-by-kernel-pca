@@ -271,7 +271,7 @@ class DownstreamPipeline:
             output = self.model(**batch_data["data"])
             batch_data["label"] = batch_data["label"].to(self.device)
 
-            self.total += batch_data["labels"].size(0)
+            self.total += batch_data["label"].size(0)
             self.correct += self.torch.sum(output == batch_data["label"].float().reshape(-1, 1))
 
     def train(self):
