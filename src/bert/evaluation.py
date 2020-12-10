@@ -272,7 +272,7 @@ class DownstreamPipeline:
             batch_data["label"] = batch_data["label"].to(self.device)
 
             self.total += batch_data["label"].size(0)
-            self.correct += torch.sum(output == batch_data["label"].float().reshape(-1, 1))
+            self.correct += torch.sum(output.round()==batch_data["label"].float().reshape(-1, 1))
 
     def train(self):
         for epoch in range(self.epochs):
@@ -287,8 +287,8 @@ class DownstreamPipeline:
             self.correct = 0
             for batch_id, batch_data in enumerate(self.val_loader):
                 self.val_step(batch_data)
-                self.writer.add_scalar(
-                    'val/accuracy',
-                    self.correct / self.total,
-                    epoch * len(self.val_loader) + batch_id
-                )
+            self.writer.add_scalar(
+                'val/accuracy',
+                self.correct / self.total,
+                epoch * len(self.val_loader) + batch_id
+            )
