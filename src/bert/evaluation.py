@@ -267,7 +267,7 @@ class DownstreamPipeline:
 
     def val_step(self, batch_data):
         self.model.eval()
-        with torch.no_grad:
+        with torch.no_grad():
             output = self.model(**batch_data["data"])
             batch_data["label"] = batch_data["label"].to(self.device)
 
