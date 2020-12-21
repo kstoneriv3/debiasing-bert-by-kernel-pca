@@ -1,13 +1,13 @@
 import argparse
 import sys
 from transformers import BertTokenizer
+
 sys.path.append("/cluster/home/vbardenha/debiasing-sent/")
 from src.bert.dataloader import GenericDataLoader, NewsData, QNLData, CoLAData, SST2Data, CoLADataReligion, \
     QNLDataReligion
 from src.bert.models import EmbeddingModel, ClassificationHead, ClassificationModel
 import torch
 import pandas as pd
-
 
 from src.bert.evaluation import female_male_saving, female_male_dataset_creation, ScoreComputer
 from src.bert.dataloader import load_from_database, select_data_set, select_data_set_standard
@@ -55,27 +55,58 @@ def establish_bias_baseline():
 
     result_frame = pd.DataFrame(
         columns=["cosine distance", "cosine p-value", "gaus distance", "gaus p-value", "sigmoid distance",
-                "sigmoid p-value"],
+                 "sigmoid p-value"],
         index=["test_6", "test_7", "test_8",
                "test_CoLA_6", "test_CoLA_7", "test_CoLA_8",
                "test_QNLI_6", "test_QNLI_7", "test_QNLI_8",
                "test_SST2_6", "test_SST2_7", "test_SST2_8"])
-    for test_type in [6,  7,  8]:
-        compute_score.load_original_seat(test_type)
-        for distance_metric in ["cosine","gaus","sigmoid"]:
-            result_frame.loc["test_{}".format(test_type),"{} distance".format(distance_metric)] = compute_score.compute_score(test_type, distance_metric)
-            result_frame.loc["test_{}".format(test_type),"{} p-value".format(distance_metric)] = compute_score.compute_permutation_score(test_type, distance_metric)
+
+    for test_type in [6, 7, 8]:
+        # For all association tests
+        for distance_metric in ["cosine", "gaus", "sigmoid"]:
+            # For all distance measurements
+            compute_score.load_original_seat(test_type)
+            result_frame.loc[
+                "test_{}".format(test_type), "{} distance".format(distance_metric)] = compute_score.compute_score(
+                test_type, distance_metric)
+            result_frame.loc["test_{}".format(test_type), "{} p-value".format(
+                distance_metric)] = compute_score.compute_permutation_score(test_type, distance_metric)
 
             for data_set in ["CoLA", "QNLI", "SST2"]:
+                # for all datasets
                 result_array_female, result_array_male = load_from_database(args.data_path, data_set, "train")
                 compute_score.read_text_example(result_array_male, result_array_female)
 
-                result_frame.loc["test_{}_{}".format(data_set,test_type), "{} distance".format(distance_metric)] = compute_score.compute_score(test_type,
-                                                                                                               distance_metric)
+                result_frame.loc["test_{}_{}".format(data_set, test_type), "{} distance".format(
+                    distance_metric)] = compute_score.compute_score(test_type,
+                                                                    distance_metric)
 
-                result_frame.loc["test_{}_{}".format(data_set,test_type), "{} p-value".format(distance_metric)] = compute_score.compute_permutation_score(
+                result_frame.loc["test_{}_{}".format(data_set, test_type), "{} p-value".format(
+                    distance_metric)] = compute_score.compute_permutation_score(
                     test_type, distance_metric)
-    result_frame.to_latex("./src/experiments/baseline_metric.tex")
+
+                debias = DebiasingPCA(2)
+                embeddings, label_index = prepare_pca_input(result_array_male, result_array_female)
+                debias.fit(embeddings, label_index)
+                if not data_set == "SST2":
+                    result_array_female_test, result_array_male_test = load_from_database(args.data_path, data_set, "test")
+
+                    embeddings_test, label_index_test = prepare_pca_input(result_array_male_test, result_array_female_test)
+                    embeddings_debiased = debias.debias(embeddings_test)
+                    debiased_male = embeddings_debiased[::2]
+                    debiased_female = embeddings_debiased[1::2]
+                    compute_score.read_text_example(debiased_male, debiased_female)
+
+                    result_frame.loc["test_{}_{}_debias".format(data_set, test_type), "{} distance".format(
+                        distance_metric)] = compute_score.compute_score(test_type,
+                                                                        distance_metric)
+
+                    result_frame.loc["test_{}_{}_debias".format(data_set, test_type), "{} p-value".format(
+                        distance_metric)] = compute_score.compute_permutation_score(
+                        test_type, distance_metric)
+
+    result_frame.to_latex("./src/experiments/baseline_metric_test.tex")
+
 
 def evaluation_gender_run():
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -180,6 +211,7 @@ def evaluation_gender_run():
           compute_score.compute_permutation_score(test_type, "gaus"),
           compute_score.compute_permutation_score(test_type, "sigmoid")
           )
+
     # print("permutation difference score p-values:",
     #       compute_score.compute_permutation_difference_score(test_type, permutation_metric))
 
@@ -189,7 +221,19 @@ def downstream_pipeline():
     tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
     embedding_model = EmbeddingModel("bert-base-uncased", batch_size=BATCHSIZE, device=device)
     classifier_model = ClassificationHead()
-    model = ClassificationModel(embedding_model=embedding_model, classification_model=classifier_model)
+    if args.use_debias:
+        result_array_female, result_array_male = load_from_database(args.data_path, args.data_name, "train")
+        debias = DebiasingPCA(2)
+        embeddings, label_index = prepare_pca_input(result_array_male, result_array_female)
+        debias.fit(embeddings, label_index)
+        debias.transfer_to_torch(device)
+    else:
+        debias = None
+
+    model = ClassificationModel(embedding_model=embedding_model,
+                                classification_model=classifier_model,
+                                do_debiasing=True,
+                                debiasing_model=debias)
 
     # Compute embeddings for the train dataset
     dataset_train = select_data_set_standard(data_name=args.data_name, tokenizer=tokenizer, data_path=args.data_path,
@@ -199,7 +243,7 @@ def downstream_pipeline():
 
     data_loader = GenericDataLoader(dataset_train, validation_data=dataset_test, batch_size=BATCHSIZE)
     optimizer = torch.optim.Adam(classifier_model.parameters())
-    trainer = DownstreamPipeline(model=model, data_loader=data_loader, device=device, optimizer=optimizer,epochs=10)
+    trainer = DownstreamPipeline(model=model, data_loader=data_loader, device=device, optimizer=optimizer, epochs=10)
     trainer.train()
 
 
@@ -227,6 +271,7 @@ if __name__ == "__main__":
     parser.add_argument('--data-name', default="CoLA", type=str, required=False)
     parser.add_argument('--out-path', default="./data/", type=str, required=False)
     parser.add_argument('--recompute', action="store_true")
+    parser.add_argument('--use_debias', action="store_true")
 
     args = parser.parse_args()
     # establish_bias_baseline()

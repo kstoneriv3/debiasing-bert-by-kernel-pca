@@ -53,11 +53,12 @@ class ClassificationModel(nn.Module):
         self.debiasing_model = debiasing_model
         self.do_debiasing = do_debiasing
         self.fine_tuning = fine_tuning
+        self.device= torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
     def forward(self, input_ids, attention_mask, token_type_ids):
         with torch.no_grad():
             embedding = self.embedding_model(input_ids, attention_mask, token_type_ids)[1]
-        if self.do_debiasing:
-            embedding = self.debiasing_model.debias(embedding)
+            if self.do_debiasing:
+                embedding = self.debiasing_model.torch_debias(embedding)
         output = self.classification_model(embedding)
         return output
