@@ -9,7 +9,7 @@ from torch.utils.tensorboard import SummaryWriter
 from sklearn.preprocessing import normalize
 from sklearn.metrics.pairwise import euclidean_distances
 import scipy.stats as stats
-
+from tqdm import trange
 
 def female_male_saving(male_array, female_array, data_path, data_name, mode="train"):
     h5f = h5py.File(data_path + 'data_out.h5', 'r+')
@@ -236,6 +236,8 @@ def prepare_pca_input(result_array_male, result_array_female):
     return embeddings, label_index
 
 
+
+
 class DownstreamPipeline:
     def __init__(self, data_loader, model, device, optimizer, epochs=100, experiment_name="set_up"):
         self.train_loader = data_loader.train_loader
@@ -275,7 +277,7 @@ class DownstreamPipeline:
             self.correct += torch.sum(output.round()==batch_data["label"].float().reshape(-1, 1))
 
     def train(self):
-        for epoch in range(self.epochs):
+        for epoch in trange(self.epochs):
             for batch_id, batch_data in enumerate(self.train_loader):
                 loss = self.train_step(batch_data)
                 self.writer.add_scalar(

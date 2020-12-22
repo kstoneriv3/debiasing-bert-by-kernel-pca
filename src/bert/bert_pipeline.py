@@ -66,42 +66,49 @@ def establish_bias_baseline():
         for distance_metric in ["cosine", "gaus", "sigmoid"]:
             # For all distance measurements
             compute_score.load_original_seat(test_type)
-            result_frame.loc[
-                "test_{}".format(test_type), "{} distance".format(distance_metric)] = compute_score.compute_score(
+            test_name = "test_{}".format(test_type),
+
+            result_frame.loc[test_name, "{} distance".format(distance_metric)] = compute_score.compute_score(
                 test_type, distance_metric)
-            result_frame.loc["test_{}".format(test_type), "{} p-value".format(
+            result_frame.loc[test_name, "{} p-value".format(
                 distance_metric)] = compute_score.compute_permutation_score(test_type, distance_metric)
 
             for data_set in ["CoLA", "QNLI", "SST2"]:
                 # for all datasets
                 result_array_female, result_array_male = load_from_database(args.data_path, data_set, "train")
                 compute_score.read_text_example(result_array_male, result_array_female)
+                test_name = "test_{}_{}".format(data_set, test_type)
 
-                result_frame.loc["test_{}_{}".format(data_set, test_type), "{} distance".format(
+                result_frame.loc[test_name, "{} distance".format(
                     distance_metric)] = compute_score.compute_score(test_type,
                                                                     distance_metric)
-
-                result_frame.loc["test_{}_{}".format(data_set, test_type), "{} p-value".format(
+                result_frame.loc[test_name, "{} p-value".format(
                     distance_metric)] = compute_score.compute_permutation_score(
                     test_type, distance_metric)
 
-                debias = DebiasingPCA(2)
+                debias = TorchDebiasingKernelPCA(2)
                 embeddings, label_index = prepare_pca_input(result_array_male, result_array_female)
                 debias.fit(embeddings, label_index)
-                if not data_set == "SST2":
-                    result_array_female_test, result_array_male_test = load_from_database(args.data_path, data_set, "test")
 
-                    embeddings_test, label_index_test = prepare_pca_input(result_array_male_test, result_array_female_test)
+                if not data_set == "SST2":
+                    result_array_female_test, result_array_male_test = load_from_database(args.data_path, data_set,
+                                                                                          "test")
+
+                    embeddings_test, label_index_test = prepare_pca_input(result_array_male_test,
+                                                                          result_array_female_test)
+
                     embeddings_debiased = debias.debias(embeddings_test)
                     debiased_male = embeddings_debiased[::2]
                     debiased_female = embeddings_debiased[1::2]
-                    compute_score.read_text_example(debiased_male, debiased_female)
 
-                    result_frame.loc["test_{}_{}_debias".format(data_set, test_type), "{} distance".format(
+
+                    compute_score.read_text_example(debiased_male, debiased_female)
+                    test_name = test_name + "_debias"
+                    result_frame.loc[test_name, "{} distance".format(
                         distance_metric)] = compute_score.compute_score(test_type,
                                                                         distance_metric)
 
-                    result_frame.loc["test_{}_{}_debias".format(data_set, test_type), "{} p-value".format(
+                    result_frame.loc[test_name, "{} p-value".format(
                         distance_metric)] = compute_score.compute_permutation_score(
                         test_type, distance_metric)
 
@@ -274,7 +281,7 @@ if __name__ == "__main__":
     parser.add_argument('--use_debias', action="store_true")
 
     args = parser.parse_args()
-    # establish_bias_baseline()
+    establish_bias_baseline()
     # gender_example_creation()
     # evaluation_gender_run()
-    downstream_pipeline()
+    # downstream_pipeline()
