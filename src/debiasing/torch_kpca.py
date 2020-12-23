@@ -263,7 +263,7 @@ def _to_torch_sparse(M):
     """
     M = M.tocoo().astype(np.float64)
     indices = torch.tensor(np.vstack((M.row, M.col)), dtype=torch.long, device=DEVICE)
-    values = torch.tensor(M.data, dtype=DTYPE, device=DEVICE)
+    values = torch.tensor(M.data, dtype=torch.float, device=DEVICE)
     shape = torch.Size(M.shape)
     M_torch = torch.sparse_coo_tensor(indices, values, shape, device=DEVICE)
     return M_torch

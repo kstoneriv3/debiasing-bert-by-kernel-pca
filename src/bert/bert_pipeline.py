@@ -12,11 +12,10 @@ import pandas as pd
 from src.bert.evaluation import female_male_saving, female_male_dataset_creation, ScoreComputer
 from src.bert.dataloader import load_from_database, select_data_set, select_data_set_standard
 from src.debiasing.pca import DebiasingPCA
-from src.debiasing.torch_kpca import TorchDebiasingKernelPCA
+from src.debiasing.mixed_kpca import MixedDebiasingKernelPCA
 from src.bert.evaluation import male_female_forward_pass, prepare_pca_input, DownstreamPipeline
 
 BATCHSIZE = 8
-
 
 def gender_example_creation():
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -43,6 +42,26 @@ def gender_example_creation():
 
             result_array_female, result_array_male = male_female_forward_pass(data_loader, model, BATCHSIZE, device)
             female_male_dataset_creation(result_array_female, result_array_male, args.data_path, data, mode)
+
+
+def create_debiased_dataset():
+    # optim_params = dict(n_iter=30, lr=0.4, alpha=0.)
+    for data_name in ["CoLA", "QNLI"]:
+        # SST2 has not enough test examples
+        result_array_female, result_array_male = load_from_database(args.data_path, data_name, "train")
+        debias = MixedDebiasingKernelPCA(2, kernel="rbf", gamma=0.024)
+        embeddings, label_index = prepare_pca_input(result_array_male, result_array_female)
+
+        debias.fit(embeddings, label_index)
+        result_array_female, result_array_male = load_from_database(args.data_path, data_name, "test")
+        embeddings_test, label_index_test = prepare_pca_input(result_array_male,
+                                                              result_array_female)
+        embeddings_debiased = debias.debias(embeddings_test)
+        print("debias successfull")
+        debiased_male = embeddings_debiased[::2]
+        debiased_female = embeddings_debiased[1::2]
+        female_male_dataset_creation(debiased_male, debiased_female, data_path=args.data_path, data_name=data_name,
+                                     mode="test_debias")
 
 
 def establish_bias_baseline():
@@ -86,21 +105,9 @@ def establish_bias_baseline():
                     distance_metric)] = compute_score.compute_permutation_score(
                     test_type, distance_metric)
 
-                debias = TorchDebiasingKernelPCA(2)
-                embeddings, label_index = prepare_pca_input(result_array_male, result_array_female)
-                debias.fit(embeddings, label_index)
-
                 if not data_set == "SST2":
-                    result_array_female_test, result_array_male_test = load_from_database(args.data_path, data_set,
-                                                                                          "test")
-
-                    embeddings_test, label_index_test = prepare_pca_input(result_array_male_test,
-                                                                          result_array_female_test)
-
-                    embeddings_debiased = debias.debias(embeddings_test)
-                    debiased_male = embeddings_debiased[::2]
-                    debiased_female = embeddings_debiased[1::2]
-
+                    # in SST2 test set there are not enough gendered examples in the test set found
+                    debiased_female, debiased_male = load_from_database(args.data_path, data_set, "test_debias")
 
                     compute_score.read_text_example(debiased_male, debiased_female)
                     test_name = test_name + "_debias"
@@ -112,115 +119,7 @@ def establish_bias_baseline():
                         distance_metric)] = compute_score.compute_permutation_score(
                         test_type, distance_metric)
 
-    result_frame.to_latex("./src/experiments/baseline_metric_test.tex")
-
-
-def evaluation_gender_run():
-    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-
-    tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
-    model = EmbeddingModel("bert-base-uncased", batch_size=BATCHSIZE, device=device)
-
-    compute_score = ScoreComputer(tokenizer, model, BATCHSIZE, device)
-    result_array_female, result_array_male = load_from_database(args.data_path, args.data_name, "train")
-    pd.DataFrame()
-    # Compute embeddings for the train dataset
-
-    if args.recompute:
-        dataset = select_data_set(data_name=args.data_name, tokenizer=tokenizer, data_path=args.data_path, mode="train")
-        data_loader = GenericDataLoader(dataset, validation_split=0, batch_size=BATCHSIZE)
-        result_array_female, result_array_male = male_female_forward_pass(data_loader, model, BATCHSIZE, device)
-    else:
-        result_array_female, result_array_male = load_from_database(args.data_path, args.data_name, "train")
-    # Score BERT for the train dataset
-    test_type = 8
-    compute_score.read_text_example(result_array_male, result_array_female)
-    print("My Score train:", compute_score.compute_score(test_type, "cosine"),
-          compute_score.compute_score(test_type, "gaus"), compute_score.compute_score(test_type, "sigmoid"))
-
-    print("permutation score p-values:", compute_score.compute_permutation_score(test_type, "cosine"),
-          compute_score.compute_permutation_score(test_type, "gaus"),
-          compute_score.compute_permutation_score(test_type, "sigmoid")
-          )
-    # permutation_metric = "gaus"
-    #
-    # print("permutation difference score p-values:",
-    #       compute_score.compute_permutation_difference_score(test_type, permutation_metric))
-    # Score BERT for the original examples
-    compute_score.load_original_seat()
-    print("Original metric train:", compute_score.compute_score(test_type, "cosine"),
-          compute_score.compute_score(test_type, "gaus"), compute_score.compute_score(test_type, "sigmoid"))
-    print("permutation score p-values:", compute_score.compute_permutation_score(test_type, "cosine"),
-          compute_score.compute_permutation_score(test_type, "gaus"),
-          compute_score.compute_permutation_score(test_type, "sigmoid")
-          )
-    # print("permutation difference score p-values:",
-    #       compute_score.compute_permutation_difference_score(test_type, permutation_metric))
-    # Train the debiasing algorithm
-    del model
-    torch.cuda.empty_cache()
-
-    debias = DebiasingPCA(2)
-    embeddings, label_index = prepare_pca_input(result_array_male, result_array_female)
-    debias.fit(embeddings, label_index)
-
-    # Debias train embeddings
-    debiased_embeddings = debias.debias(embeddings)
-
-    # Compute scores of debiased embeddings
-    compute_score.read_text_example(debiased_embeddings[label_index == 0], debiased_embeddings[label_index == 1])
-    print("My score debias train:", compute_score.compute_score(test_type, "cosine"),
-          compute_score.compute_score(test_type, "gaus"), compute_score.compute_score(test_type, "sigmoid"))
-    print("permutation score p-values:", compute_score.compute_permutation_score(test_type, "cosine"),
-          compute_score.compute_permutation_score(test_type, "gaus"),
-          compute_score.compute_permutation_score(test_type, "sigmoid")
-          )
-    # print("permutation difference score p-values:",
-    #       compute_score.compute_permutation_difference_score(test_type, permutation_metric))
-
-    # Compute score of original metric after debiasing
-    compute_score.load_original_seat()
-    compute_score.male_embeddings = debias.debias(compute_score.male_embeddings)
-    compute_score.female_embeddings = debias.debias(compute_score.female_embeddings)
-    print("original metric debias:", compute_score.compute_score(test_type, "cosine"),
-          compute_score.compute_score(test_type, "gaus"), compute_score.compute_score(test_type, "sigmoid"))
-    print("permutation score p-values:", compute_score.compute_permutation_score(test_type, "cosine"),
-          compute_score.compute_permutation_score(test_type, "gaus"),
-          compute_score.compute_permutation_score(test_type, "sigmoid")
-          )
-    # print("permutation difference score p-values:",
-    #       compute_score.compute_permutation_difference_score(test_type, permutation_metric))
-    # Analyze results on the test dataset
-    model = EmbeddingModel("bert-base-uncased", batch_size=BATCHSIZE, device=device)
-
-    if args.recompute:
-        dataset = select_data_set(data_name=args.data_name, tokenizer=tokenizer, data_path=args.data_path, mode="test")
-        data_loader = GenericDataLoader(dataset, validation_split=0, batch_size=BATCHSIZE)
-        result_array_female, result_array_male = male_female_forward_pass(data_loader, model, BATCHSIZE, device)
-    else:
-        result_array_female, result_array_male = load_from_database(args.data_path, args.data_name, "test")
-
-    compute_score.read_text_example(result_array_male, result_array_female)
-    print("Original score test:", compute_score.compute_score(test_type, "cosine"),
-          compute_score.compute_score(test_type, "gaus"), compute_score.compute_score(test_type, "sigmoid"))
-    print("permutation score p-values:", compute_score.compute_permutation_score(test_type, "cosine"),
-          compute_score.compute_permutation_score(test_type, "gaus"),
-          compute_score.compute_permutation_score(test_type, "sigmoid")
-          )
-    # print("permutation difference score p-values:",
-    #       compute_score.compute_permutation_difference_score(test_type, permutation_metric))
-    # embeddings, label_index = prepare_pca_input(result_array_male, result_array_female)
-    debiased_embeddings = debias.debias(embeddings)
-    compute_score.read_text_example(debiased_embeddings[label_index == 0], debiased_embeddings[label_index == 1])
-    print("Debiased score test:", compute_score.compute_score(test_type, "cosine"),
-          compute_score.compute_score(test_type, "gaus"), compute_score.compute_score(test_type, "sigmoid"))
-    print("permutation score p-values:", compute_score.compute_permutation_score(test_type, "cosine"),
-          compute_score.compute_permutation_score(test_type, "gaus"),
-          compute_score.compute_permutation_score(test_type, "sigmoid")
-          )
-
-    # print("permutation difference score p-values:",
-    #       compute_score.compute_permutation_difference_score(test_type, permutation_metric))
+    result_frame.to_latex("./src/experiments/baseline_metric_no_debias.tex")
 
 
 def downstream_pipeline():
@@ -228,14 +127,19 @@ def downstream_pipeline():
     tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
     embedding_model = EmbeddingModel("bert-base-uncased", batch_size=BATCHSIZE, device=device)
     classifier_model = ClassificationHead()
-    if args.use_debias:
-        result_array_female, result_array_male = load_from_database(args.data_path, args.data_name, "train")
+
+    if args.debias_method == "pca":
         debias = DebiasingPCA(2)
+    elif args.debias_method == "kpca":
+        debias = MixedDebiasingKernelPCA(2)
+    else:
+        debias = None
+
+    if (args.debias_method == "pca") or (args.debias_method == "kpca"):
+        result_array_female, result_array_male = load_from_database(args.data_path, args.data_name, "train")
         embeddings, label_index = prepare_pca_input(result_array_male, result_array_female)
         debias.fit(embeddings, label_index)
         debias.transfer_to_torch(device)
-    else:
-        debias = None
 
     model = ClassificationModel(embedding_model=embedding_model,
                                 classification_model=classifier_model,
@@ -254,23 +158,6 @@ def downstream_pipeline():
     trainer.train()
 
 
-# def religion_run():
-#     # parse arguments
-#     parser = argparse.ArgumentParser()
-#     args = parser.parse_args()
-#
-#     tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
-#     dataset = QNLDataReligion(tokenizer=tokenizer,
-#                               data_path="D:/Dokumente/Universitaet/Statistik/ML/NLP_new/debiasing-sent/data"
-#                                         "/QNLI/dev.tsv")
-#     data_loader = GenericDataLoader(dataset, validation_split=0, batch_size=BATCHSIZE)
-#     model = EmbeddingModel("bert-base-uncased", batch_size=BATCHSIZE)
-#     for el in data_loader.train_loader:
-#         christ_embedding = model.forward(**el["christ"])
-#         jew_embedding = model.forward(**el["jew"])
-#         muslim_embedding = model.forward(**el["muslim"])
-
-
 if __name__ == "__main__":
     # parse arguments
     parser = argparse.ArgumentParser()
@@ -278,10 +165,17 @@ if __name__ == "__main__":
     parser.add_argument('--data-name', default="CoLA", type=str, required=False)
     parser.add_argument('--out-path', default="./data/", type=str, required=False)
     parser.add_argument('--recompute', action="store_true")
-    parser.add_argument('--use_debias', action="store_true")
+    parser.add_argument('--debias_method', default="none",type=str,required=False)
 
     args = parser.parse_args()
-    establish_bias_baseline()
+
+    # Run
+    #   1. Download data by running src/experiments/download_data.py
+    #   2. Create Embeddings for sentences that have a gender dimension
     # gender_example_creation()
-    # evaluation_gender_run()
-    # downstream_pipeline()
+    # #   3. Create the dataset after applying debiasing approaches to gendered sentences
+    # create_debiased_dataset()
+    # #   4. Evaluate SEAT before and after Debiasing was applied
+    # establish_bias_baseline()
+    #   5. Compute downstream performance with debiasing or without debiasing
+    downstream_pipeline()
