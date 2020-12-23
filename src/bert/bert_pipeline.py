@@ -143,7 +143,7 @@ def downstream_pipeline():
 
     model = ClassificationModel(embedding_model=embedding_model,
                                 classification_model=classifier_model,
-                                do_debiasing=True,
+                                do_debiasing=(args.debias_method == "pca") or (args.debias_method == "kpca"),
                                 debiasing_model=debias)
 
     # Compute embeddings for the train dataset
@@ -172,10 +172,10 @@ if __name__ == "__main__":
     # Run
     #   1. Download data by running src/experiments/download_data.py
     #   2. Create Embeddings for sentences that have a gender dimension
-    # gender_example_creation()
+    gender_example_creation()
     # #   3. Create the dataset after applying debiasing approaches to gendered sentences
-    # create_debiased_dataset()
+    create_debiased_dataset()
     # #   4. Evaluate SEAT before and after Debiasing was applied
-    # establish_bias_baseline()
+    establish_bias_baseline()
     #   5. Compute downstream performance with debiasing or without debiasing
     downstream_pipeline()
