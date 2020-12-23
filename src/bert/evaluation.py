@@ -206,8 +206,8 @@ class ScoreComputer:
 
 
 def male_female_forward_pass(data_loader, model, batch_size, device):
-    result_array_male = np.empty((len(data_loader.train_loader) * batch_size, 768), dtype=float)
-    result_array_female = np.empty((len(data_loader.train_loader) * batch_size, 768), dtype=float)
+    result_array_male = np.zeros((len(data_loader.train_loader) * batch_size, 768), dtype=float)
+    result_array_female = np.zeros((len(data_loader.train_loader) * batch_size, 768), dtype=float)
 
     try:
         for n, el in enumerate(data_loader.train_loader):
