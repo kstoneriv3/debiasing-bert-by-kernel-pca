@@ -48,7 +48,7 @@ class ClassificationModel(nn.Module):
     def __init__(self, embedding_model, classification_model, debiasing_model=None, do_debiasing=False,
                  fine_tuning=False):
         super(ClassificationModel, self).__init__()
-        self.embedding_model = embedding_model
+        self.embedding_model = embedding_model.eval()
         self.classification_model = classification_model
         self.debiasing_model = debiasing_model
         self.do_debiasing = do_debiasing
@@ -56,9 +56,16 @@ class ClassificationModel(nn.Module):
         self.device= torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
     def forward(self, input_ids, attention_mask, token_type_ids):
-        with torch.no_grad():
-            embedding = self.embedding_model(input_ids, attention_mask, token_type_ids)[1]
+        embedding = self.embedding_model(input_ids, attention_mask, token_type_ids)[1].detach()
         if self.do_debiasing:
             embedding = self.debiasing_model.torch_debias(embedding)
         output = self.classification_model(embedding)
         return output
+
+    def eval(self):
+        self.embedding_model.eval()
+        self.classification_model.eval()
+
+    def train(self):
+        self.classification_model.train()
+

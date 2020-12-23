@@ -198,12 +198,6 @@ class MixedDebiasingKernelPCA:
         return new_kernel
 
     def orth_losses(self, X, X_orth, alpha):
-
-        n_samples, n_features = X.shape
-        n_train = self.X_fit_.shape[0]
-
-        DX_fit_ = self.DX_fit_
-
         Koo = self.kernel(X_orth, autoreshape=False)
         Kox = self.kernel(X_orth, X, autoreshape=False)
         KoP = torch.sparse.mm(self.DX_fit_, self.kernel(self.X_fit_, X_orth)).transpose(0, 1)
@@ -215,7 +209,7 @@ class MixedDebiasingKernelPCA:
         losses /= (1. + alpha)
         return losses
 
-    def debias(self, X, n_iter=30, lr=0.4, alpha=0.1,batch_size=16):
+    def debias(self, X, n_iter=30, lr=0.4, alpha=0.1, batch_size=16):
         """Debias the embeddings by reprojection of kernel PCA.
 
         Parameters

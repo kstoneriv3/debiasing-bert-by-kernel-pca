@@ -273,12 +273,12 @@ class DownstreamPipeline:
 
     def val_step(self, batch_data):
         self.model.eval()
-        with torch.no_grad():
-            output = self.model(**batch_data["data"])
-            batch_data["label"] = batch_data["label"].to(self.device)
+        # with torch.no_grad():
+        output = self.model(**batch_data["data"])
+        batch_data["label"] = batch_data["label"].to(self.device)
 
-            self.total += batch_data["label"].size(0)
-            self.correct += torch.sum(output.round()==batch_data["label"].float().reshape(-1, 1))
+        self.total += batch_data["label"].size(0)
+        self.correct += torch.sum(output.round()==batch_data["label"].float().reshape(-1, 1))
 
     def train(self):
         for epoch in trange(self.epochs):
