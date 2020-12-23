@@ -165,17 +165,17 @@ if __name__ == "__main__":
     parser.add_argument('--data-name', default="CoLA", type=str, required=False)
     parser.add_argument('--out-path', default="./data/", type=str, required=False)
     parser.add_argument('--recompute', action="store_true")
-    parser.add_argument('--debias_method', default="none",type=str,required=False)
+    parser.add_argument('--debias-method', default="none",type=str,required=False)
 
     args = parser.parse_args()
 
     # Run
     #   1. Download data by running src/experiments/download_data.py
     #   2. Create Embeddings for sentences that have a gender dimension
-    gender_example_creation()
+    # gender_example_creation()
     # #   3. Create the dataset after applying debiasing approaches to gendered sentences
-    create_debiased_dataset()
+    # create_debiased_dataset()
     # #   4. Evaluate SEAT before and after Debiasing was applied
-    establish_bias_baseline()
+    # establish_bias_baseline()
     #   5. Compute downstream performance with debiasing or without debiasing
     downstream_pipeline()

@@ -58,7 +58,7 @@ class ClassificationModel(nn.Module):
     def forward(self, input_ids, attention_mask, token_type_ids):
         with torch.no_grad():
             embedding = self.embedding_model(input_ids, attention_mask, token_type_ids)[1]
-            if self.do_debiasing:
-                embedding = self.debiasing_model.torch_debias(embedding)
+        if self.do_debiasing:
+            embedding = self.debiasing_model.torch_debias(embedding)
         output = self.classification_model(embedding)
         return output

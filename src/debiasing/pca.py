@@ -51,7 +51,7 @@ class DebiasingPCA:
     def torch_debias(self, X):
         X_tr = self.torch_transform(X)
         X_orth = X - self.torch_inverse_transform(X_tr)
-        return X_orth
+        return X_orth.detach()
 
     @staticmethod
     def center_linearly(X, X_index):

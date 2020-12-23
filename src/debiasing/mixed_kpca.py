@@ -259,7 +259,7 @@ class MixedDebiasingKernelPCA:
         self.alphas_ = torch.from_numpy(self.alphas_).float().to(device)
         self.lambdas_inv = torch.from_numpy(1. / self.lambdas_).float().to(device)
 
-    def torch_debias(self, X, n_iter=30, lr=0.4, alpha=0.1,batch_size=16):
+    def torch_debias(self, X, n_iter=30, lr=0.4, alpha=0.,batch_size=16):
         """Debias the embeddings by reprojection of kernel PCA.
 
         Parameters
@@ -283,7 +283,7 @@ class MixedDebiasingKernelPCA:
 
         for i in range(n_iter):
             optimizer.zero_grad()
-            losses = self.orth_losses(X[j*batch_size:(j+1)*batch_size], X_orth[j*batch_size:(j+1)*batch_size], alpha)
+            losses = self.orth_losses(X, X_orth, alpha)
             loss = torch.sum(losses)
             loss.backward()
             optimizer.step()
