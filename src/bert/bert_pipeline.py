@@ -46,10 +46,16 @@ def gender_example_creation():
 
 def create_debiased_dataset():
     # optim_params = dict(n_iter=30, lr=0.4, alpha=0.)
+    if args.debias_method == "none":
+        return None
     for data_name in ["CoLA", "QNLI"]:
         # SST2 has not enough test examples
         result_array_female, result_array_male = load_from_database(args.data_path, data_name, "train")
-        debias = MixedDebiasingKernelPCA(2, kernel="rbf", gamma=0.024)
+        if args.debias_method == "pca":
+            debias = DebiasingPCA(2)
+        elif args.debias_method == "kpca":
+            debias = MixedDebiasingKernelPCA(2, kernel="rbf", gamma=0.024)
+
         embeddings, label_index = prepare_pca_input(result_array_male, result_array_female)
 
         debias.fit(embeddings, label_index)
@@ -61,7 +67,7 @@ def create_debiased_dataset():
         debiased_male = embeddings_debiased[::2]
         debiased_female = embeddings_debiased[1::2]
         female_male_dataset_creation(debiased_male, debiased_female, data_path=args.data_path, data_name=data_name,
-                                     mode="test_debias")
+                                     mode="test_debias_{}".format(args.debias_method))
 
 
 def establish_bias_baseline():
@@ -131,7 +137,7 @@ def downstream_pipeline():
     if args.debias_method == "pca":
         debias = DebiasingPCA(2)
     elif args.debias_method == "kpca":
-        debias = MixedDebiasingKernelPCA(2)
+        debias = MixedDebiasingKernelPCA(2, kernel="rbf", gamma=0.024)
     else:
         debias = None
 
