@@ -79,9 +79,9 @@ class GenericDataLoader:
                     self.dataset, batch_size, sampler=val_sampler, drop_last=True)
             else:
                 indices = np.arange(len(dataset))
-                indices = np.random.permutation(indices)
+                np.random.permutation(indices)
                 val_indices = np.arange(len(validation_data))
-                val_indices = np.random.permutation(val_indices)
+                np.random.permutation(val_indices)
                 train_sampler = SequentialSampler(indices)
                 val_sampler = SequentialSampler(val_indices)
                 self.train_loader = DataLoader(

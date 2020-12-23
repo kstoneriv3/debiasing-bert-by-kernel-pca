@@ -187,10 +187,10 @@ if __name__ == "__main__":
     # Run
     #   1. Download data by running src/experiments/download_data.py
     #   2. Create Embeddings for sentences that have a gender dimension
-    gender_example_creation()
-    # # #   3. Create the dataset after applying debiasing approaches to gendered sentences
-    create_debiased_dataset()
-    # # #   4. Evaluate SEAT before and after Debiasing was applied
-    establish_bias_baseline()
-    #   5. Compute downstream performance with debiasing or without debiasing
+    # gender_example_creation()
+    # # 3. Create the dataset after applying debiasing approaches to gendered sentences
+    # create_debiased_dataset()
+    # #   4. Evaluate SEAT before and after Debiasing was applied
+    # establish_bias_baseline()
+    # #  5. Compute downstream performance with debiasing or without debiasing
     downstream_pipeline()
