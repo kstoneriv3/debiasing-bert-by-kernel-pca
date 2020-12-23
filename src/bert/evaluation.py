@@ -220,9 +220,6 @@ def male_female_forward_pass(data_loader, model, batch_size, device):
         # print(mean_difference)
         print("finish")
 
-    del el
-    torch.cuda.empty_cache()
-
     result_array_female = result_array_female[: np.where(result_array_female[:, 0] == 0)[0][0]]
     result_array_male = result_array_male[: np.where(result_array_male[:, 0] == 0)[0][0]]
     return result_array_female, result_array_male
