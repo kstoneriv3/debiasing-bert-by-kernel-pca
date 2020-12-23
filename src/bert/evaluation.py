@@ -21,11 +21,18 @@ def female_male_saving(male_array, female_array, data_path, data_name, mode="tra
 
 
 def female_male_dataset_creation(male_array, female_array, data_path, data_name, mode):
-    h5f = h5py.File(data_path + 'data_out.h5', 'a')
-    h5f.create_dataset("female_embeddings_{}_{}".format(data_name, mode), data=female_array)
-    h5f.create_dataset("male_embeddings_{}_{}".format(data_name, mode), data=male_array)
-    h5f.close()
-
+    try:
+        h5f = h5py.File(data_path + 'data_out.h5', 'a')
+        h5f.create_dataset("female_embeddings_{}_{}".format(data_name, mode), data=female_array)
+        h5f.create_dataset("male_embeddings_{}_{}".format(data_name, mode), data=male_array)
+        h5f.close()
+    except RuntimeError:
+        h5f = h5py.File(data_path + 'data_out.h5', 'r+')
+        fem_data = h5f["female_embeddings_{}_{}".format(data_name, mode)]
+        fem_data[...] = female_array
+        male_data = h5f["male_embeddings_{}_{}".format(data_name, mode)]
+        male_data[...] = male_array
+        h5f.close()
 
 def cosine_similarity(emb, el):
     # emb = normalize(emb)

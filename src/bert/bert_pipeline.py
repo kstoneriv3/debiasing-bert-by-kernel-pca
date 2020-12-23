@@ -31,7 +31,7 @@ def gender_example_creation():
     model = EmbeddingModel("bert-base-uncased", batch_size=BATCHSIZE, device=device)
     for mode in ["train", "test"]:
         for data in ["CoLA", "QNLI", "SST2"]:
-            dataset = select_data_set_standard(data, tokenizer, args.data_path, mode)
+            dataset = select_data_set(data, tokenizer, args.data_path, mode)
             data_loader = GenericDataLoader(dataset, validation_split=0, batch_size=BATCHSIZE)
 
             result_array_female, result_array_male = male_female_forward_pass(data_loader, model, BATCHSIZE, device)
@@ -135,7 +135,7 @@ def establish_bias_baseline():
 
 def downstream_pipeline():
     """
-    Run the training and evaluation of the downstream tasks and see how the accuracy is influenced by debiasing 
+    Run the training and evaluation of the downstream tasks and see how the accuracy is influenced by debiasing
     :return:
     """
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -187,10 +187,10 @@ if __name__ == "__main__":
     # Run
     #   1. Download data by running src/experiments/download_data.py
     #   2. Create Embeddings for sentences that have a gender dimension
-    # gender_example_creation()
+    gender_example_creation()
     # # #   3. Create the dataset after applying debiasing approaches to gendered sentences
-    # create_debiased_dataset()
+    create_debiased_dataset()
     # # #   4. Evaluate SEAT before and after Debiasing was applied
-    # establish_bias_baseline()
+    establish_bias_baseline()
     #   5. Compute downstream performance with debiasing or without debiasing
     downstream_pipeline()
