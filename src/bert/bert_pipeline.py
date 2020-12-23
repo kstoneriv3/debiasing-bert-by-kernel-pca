@@ -111,9 +111,9 @@ def establish_bias_baseline():
                     distance_metric)] = compute_score.compute_permutation_score(
                     test_type, distance_metric)
 
-                if not data_set == "SST2":
-                    # in SST2 test set there are not enough gendered examples in the test set found
-                    debiased_female, debiased_male = load_from_database(args.data_path, data_set, "test_debias")
+                if not (data_set == "SST2") and (args.debias_method != "none"):
+                    # in SST2 test set there are not enough gendered examples
+                    debiased_female, debiased_male = load_from_database(args.data_path, data_set, "test_debias_{}".format(args.debias_method))
 
                     compute_score.read_text_example(debiased_male, debiased_female)
                     test_name = test_name + "_debias"
@@ -125,7 +125,7 @@ def establish_bias_baseline():
                         distance_metric)] = compute_score.compute_permutation_score(
                         test_type, distance_metric)
 
-    result_frame.to_latex("./src/experiments/baseline_metric_no_debias.tex")
+    result_frame.to_latex("./src/experiments/baseline_metric_{}.tex".format(args.debias_method))
 
 
 def downstream_pipeline():
