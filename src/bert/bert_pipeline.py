@@ -17,27 +17,21 @@ from src.bert.evaluation import male_female_forward_pass, prepare_pca_input, Dow
 
 BATCHSIZE = 8
 
+
 def gender_example_creation():
+    """
+    1. Find the sentences with gendered words in all datasets
+    2. create both male and female version
+    3. Run through BERT sentence embedding
+    4. save to database
+    """
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
     tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
     model = EmbeddingModel("bert-base-uncased", batch_size=BATCHSIZE, device=device)
     for mode in ["train", "test"]:
         for data in ["CoLA", "QNLI", "SST2"]:
-            if data == "CoLA":
-                dataset = CoLAData(tokenizer=tokenizer,
-                                   data_path=args.data_path + "CoLA/{}.tsv".format(mode))
-            elif data == "QNLI":
-                dataset = QNLData(tokenizer=tokenizer,
-                                  data_path=args.data_path + "QNLI/{}.tsv".format(mode))
-            elif data == "SST2":
-                dataset = SST2Data(tokenizer=tokenizer,
-                                   data_path=args.data_path + "SST-2/{}.tsv".format(mode))
-            elif data == "AGNews":
-                dataset = NewsData(
-                    tokenizer=tokenizer,
-                    data_path=args.data_path + "AGNews/train.csv",
-                )
+            dataset = select_data_set_standard(data, tokenizer, args.data_path, mode)
             data_loader = GenericDataLoader(dataset, validation_split=0, batch_size=BATCHSIZE)
 
             result_array_female, result_array_male = male_female_forward_pass(data_loader, model, BATCHSIZE, device)
@@ -45,6 +39,12 @@ def gender_example_creation():
 
 
 def create_debiased_dataset():
+    """
+    1. load embedded datasets
+    2. fit debiasing method on the training data
+    3. apply on test data and save debiased embeddings
+    :return:
+    """
     # optim_params = dict(n_iter=30, lr=0.4, alpha=0.)
     if args.debias_method == "none":
         return None
@@ -71,6 +71,10 @@ def create_debiased_dataset():
 
 
 def establish_bias_baseline():
+    """
+    Compute metric with difference distance functions for debiased and original embeddings
+    :return:
+    """
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
     tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
@@ -113,7 +117,8 @@ def establish_bias_baseline():
 
                 if not (data_set == "SST2") and (args.debias_method != "none"):
                     # in SST2 test set there are not enough gendered examples
-                    debiased_female, debiased_male = load_from_database(args.data_path, data_set, "test_debias_{}".format(args.debias_method))
+                    debiased_female, debiased_male = load_from_database(args.data_path, data_set,
+                                                                        "test_debias_{}".format(args.debias_method))
 
                     compute_score.read_text_example(debiased_male, debiased_female)
                     test_name = test_name + "_debias"
@@ -129,6 +134,10 @@ def establish_bias_baseline():
 
 
 def downstream_pipeline():
+    """
+    Run the training and evaluation of the downstream tasks and see how the accuracy is influenced by debiasing 
+    :return:
+    """
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
     embedding_model = EmbeddingModel("bert-base-uncased", batch_size=BATCHSIZE, device=device)
@@ -171,7 +180,7 @@ if __name__ == "__main__":
     parser.add_argument('--data-name', default="CoLA", type=str, required=False)
     parser.add_argument('--out-path', default="./data/", type=str, required=False)
     parser.add_argument('--recompute', action="store_true")
-    parser.add_argument('--debias-method', default="none",type=str,required=False)
+    parser.add_argument('--debias-method', default="none", type=str, required=False)
 
     args = parser.parse_args()
 
