@@ -30,7 +30,7 @@ The directory `notebook` can be used to keep random jupyter notebook used during
 # TODO
 # 1. download dataset to the environment
 command1
-# 2. generate embeddings of debiasing sets and test data
+# 2. generate embeddings of defining sets and test data
 command2
 # 3. debias the test data
 command3
