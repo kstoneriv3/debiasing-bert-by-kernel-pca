@@ -8,6 +8,7 @@ from src.bert.dataloader import GenericDataLoader, NewsData, QNLData, CoLAData, 
 from src.bert.models import EmbeddingModel, ClassificationHead, ClassificationModel
 import torch
 import pandas as pd
+import numpy as np
 
 from src.bert.evaluation import female_male_saving, female_male_dataset_creation, ScoreComputer
 from src.bert.dataloader import load_from_database, select_data_set, select_data_set_standard
@@ -101,12 +102,19 @@ def establish_bias_baseline():
                 test_type, distance_metric)
             result_frame.loc[test_name, "{} p-value".format(
                 distance_metric)] = compute_score.compute_permutation_score(test_type, distance_metric)
+            if args.combine_data:
+                full_array_male = []
+                full_array_female = []
 
-            for data_set in ["CoLA", "QNLI", "SST2"]:
-                # for all datasets
-                result_array_female, result_array_male = load_from_database(args.data_path, data_set, "train")
-                compute_score.read_text_example(result_array_male, result_array_female)
-                test_name = "test_{}_{}".format(data_set, test_type)
+                for data_set in ["CoLA", "QNLI", "SST2"]:
+                    # for all datasets
+                    result_array_female, result_array_male = load_from_database(args.data_path, data_set, "train")
+                    full_array_female.append(result_array_female)
+                    full_array_male.append(result_array_male)
+                full_array_male = np.concatenate(full_array_male)
+                full_array_female = np.concatenate(full_array_female)
+                compute_score.read_text_example(full_array_male, full_array_female)
+                test_name = "test_{}_{}".format("combined_data", test_type)
 
                 result_frame.loc[test_name, "{} distance".format(
                     distance_metric)] = compute_score.compute_score(test_type,
@@ -115,20 +123,36 @@ def establish_bias_baseline():
                     distance_metric)] = compute_score.compute_permutation_score(
                     test_type, distance_metric)
 
-                if not (data_set == "SST2") and (args.debias_method != "none"):
-                    # in SST2 test set there are not enough gendered examples
-                    debiased_female, debiased_male = load_from_database(args.data_path, data_set,
-                                                                        "test_debias_{}".format(args.debias_method))
+            else:
+                for data_set in ["CoLA", "QNLI", "SST2"]:
+                    # for all datasets
+                    result_array_female, result_array_male = load_from_database(args.data_path, data_set, "train")
 
-                    compute_score.read_text_example(debiased_male, debiased_female)
-                    test_name = test_name + "_debias"
+
+                    compute_score.read_text_example(result_array_male, result_array_female)
+                    test_name = "test_{}_{}".format(data_set, test_type)
+
                     result_frame.loc[test_name, "{} distance".format(
                         distance_metric)] = compute_score.compute_score(test_type,
                                                                         distance_metric)
-
                     result_frame.loc[test_name, "{} p-value".format(
                         distance_metric)] = compute_score.compute_permutation_score(
                         test_type, distance_metric)
+
+                    if not (data_set == "SST2") and (args.debias_method != "none"):
+                        # in SST2 test set there are not enough gendered examples
+                        debiased_female, debiased_male = load_from_database(args.data_path, data_set,
+                                                                            "test_debias_{}".format(args.debias_method))
+
+                        compute_score.read_text_example(debiased_male, debiased_female)
+                        test_name = test_name + "_debias"
+                        result_frame.loc[test_name, "{} distance".format(
+                            distance_metric)] = compute_score.compute_score(test_type,
+                                                                            distance_metric)
+
+                        result_frame.loc[test_name, "{} p-value".format(
+                            distance_metric)] = compute_score.compute_permutation_score(
+                            test_type, distance_metric)
 
     result_frame.to_latex("./src/experiments/baseline_metric_{}.tex".format(args.debias_method))
 
@@ -181,15 +205,15 @@ if __name__ == "__main__":
     parser.add_argument('--out-path', default="./data/", type=str, required=False)
     parser.add_argument('--recompute', action="store_true")
     parser.add_argument('--debias-method', default="none", type=str, required=False)
-
+    parser.add_argument('--combine_data', action="store_true")
     args = parser.parse_args()
 
     # Run
     #   1. Download data by running src/experiments/download_data.py
     #   2. Create Embeddings for sentences that have a gender dimension
-    gender_example_creation()
+    # gender_example_creation()
     # 3. Create the dataset after applying debiasing approaches to gendered sentences
-    create_debiased_dataset()
+    # create_debiased_dataset()
     #   4. Evaluate SEAT before and after Debiasing was applied
     establish_bias_baseline()
     #  5. Compute downstream performance with debiasing or without debiasing
