@@ -81,11 +81,11 @@ def create_debiased_dataset():
         female_male_dataset_creation(debiased_male, debiased_female, data_path=args.data_path, data_name=data_name,
                                      mode="test_debias_{}".format(args.debias_method))
     if args.combine_data:
-        full_array_male=np.concatenate(full_array_male)
-        full_array_female=np.concatenate(full_array_female)
+        full_array_male = np.concatenate(full_array_male)
+        full_array_female = np.concatenate(full_array_female)
 
-        full_array_male_test=np.concatenate(full_array_male_test)
-        full_array_female_test=np.concatenate(full_array_female_test)
+        full_array_male_test = np.concatenate(full_array_male_test)
+        full_array_female_test = np.concatenate(full_array_female_test)
 
         embeddings, label_index = prepare_pca_input(full_array_male, full_array_female)
 
@@ -216,7 +216,18 @@ def downstream_pipeline():
         debias = None
 
     if (args.debias_method == "pca") or (args.debias_method == "kpca"):
-        result_array_female, result_array_male = load_from_database(args.data_path, args.data_name, "train")
+        if args.combine_data:
+            full_array_female=[]
+            full_array_male=[]
+            for data_set in ["CoLA", "QNLI", "SST2"]:
+                # for all datasets
+                result_array_female, result_array_male = load_from_database(args.data_path, data_set, "test")
+                full_array_female.append(result_array_female)
+                full_array_male.append(result_array_male)
+            result_array_male = np.concatenate(full_array_male)
+            result_array_female = np.concatenate(full_array_female)
+        else:
+            result_array_female, result_array_male = load_from_database(args.data_path, args.data_name, "train")
         embeddings, label_index = prepare_pca_input(result_array_male, result_array_female)
         debias.fit(embeddings, label_index)
         debias.transfer_to_torch(device)
@@ -254,8 +265,8 @@ if __name__ == "__main__":
     #   2. Create Embeddings for sentences that have a gender dimension
     # gender_example_creation()
     # 3. Create the dataset after applying debiasing approaches to gendered sentences
-    create_debiased_dataset()
+    # create_debiased_dataset()
     #   4. Evaluate SEAT before and after Debiasing was applied
-    establish_bias_baseline()
+    # establish_bias_baseline()
     #  5. Compute downstream performance with debiasing or without debiasing
-    # downstream_pipeline()
+    downstream_pipeline()
