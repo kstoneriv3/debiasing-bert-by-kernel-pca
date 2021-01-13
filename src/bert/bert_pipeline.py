@@ -49,9 +49,16 @@ def create_debiased_dataset():
     # optim_params = dict(n_iter=30, lr=0.4, alpha=0.)
     if args.debias_method == "none":
         return None
-    for data_name in ["CoLA", "QNLI"]:
+    full_array_female = []
+    full_array_male = []
+    full_array_female_test = []
+    full_array_male_test = []
+    for data_name in ["CoLA", "QNLI","SST2"]:
         # SST2 has not enough test examples
         result_array_female, result_array_male = load_from_database(args.data_path, data_name, "train")
+        full_array_male.append(result_array_male)
+        full_array_female.append(result_array_female)
+
         if args.debias_method == "pca":
             debias = DebiasingPCA(2)
         elif args.debias_method == "kpca":
@@ -60,7 +67,11 @@ def create_debiased_dataset():
         embeddings, label_index = prepare_pca_input(result_array_male, result_array_female)
 
         debias.fit(embeddings, label_index)
+        if data_name == "SST2":
+            continue
         result_array_female, result_array_male = load_from_database(args.data_path, data_name, "test")
+        full_array_female_test.append(result_array_female)
+        full_array_male_test.append(result_array_male)
         embeddings_test, label_index_test = prepare_pca_input(result_array_male,
                                                               result_array_female)
         embeddings_debiased = debias.debias(embeddings_test)
@@ -69,7 +80,24 @@ def create_debiased_dataset():
         debiased_female = embeddings_debiased[1::2]
         female_male_dataset_creation(debiased_male, debiased_female, data_path=args.data_path, data_name=data_name,
                                      mode="test_debias_{}".format(args.debias_method))
+    if args.combine_data:
+        full_array_male=np.concatenate(full_array_male)
+        full_array_female=np.concatenate(full_array_female)
 
+        full_array_male_test=np.concatenate(full_array_male_test)
+        full_array_female_test=np.concatenate(full_array_female_test)
+
+        embeddings, label_index = prepare_pca_input(full_array_male, full_array_female)
+
+        debias.fit(embeddings, label_index)
+        embeddings_test, label_index_test = prepare_pca_input(full_array_male_test,
+                                                              full_array_female_test)
+        embeddings_debiased = debias.debias(embeddings_test)
+        print("debias successfull")
+        debiased_male = embeddings_debiased[::2]
+        debiased_female = embeddings_debiased[1::2]
+        female_male_dataset_creation(debiased_male, debiased_female, data_path=args.data_path, data_name="full",
+                                     mode="test_debias_{}".format(args.debias_method))
 
 def establish_bias_baseline():
     """
@@ -108,7 +136,7 @@ def establish_bias_baseline():
 
                 for data_set in ["CoLA", "QNLI", "SST2"]:
                     # for all datasets
-                    result_array_female, result_array_male = load_from_database(args.data_path, data_set, "train")
+                    result_array_female, result_array_male = load_from_database(args.data_path, data_set, "test")
                     full_array_female.append(result_array_female)
                     full_array_male.append(result_array_male)
                 full_array_male = np.concatenate(full_array_male)
@@ -119,6 +147,19 @@ def establish_bias_baseline():
                 result_frame.loc[test_name, "{} distance".format(
                     distance_metric)] = compute_score.compute_score(test_type,
                                                                     distance_metric)
+                result_frame.loc[test_name, "{} p-value".format(
+                    distance_metric)] = compute_score.compute_permutation_score(
+                    test_type, distance_metric)
+
+                debiased_female, debiased_male = load_from_database(args.data_path, "full",
+                                                                    "test_debias_{}".format(args.debias_method))
+
+                compute_score.read_text_example(debiased_male, debiased_female)
+                test_name = test_name + "_debias"
+                result_frame.loc[test_name, "{} distance".format(
+                    distance_metric)] = compute_score.compute_score(test_type,
+                                                                    distance_metric)
+
                 result_frame.loc[test_name, "{} p-value".format(
                     distance_metric)] = compute_score.compute_permutation_score(
                     test_type, distance_metric)
@@ -213,8 +254,8 @@ if __name__ == "__main__":
     #   2. Create Embeddings for sentences that have a gender dimension
     # gender_example_creation()
     # 3. Create the dataset after applying debiasing approaches to gendered sentences
-    # create_debiased_dataset()
+    create_debiased_dataset()
     #   4. Evaluate SEAT before and after Debiasing was applied
     establish_bias_baseline()
     #  5. Compute downstream performance with debiasing or without debiasing
-    downstream_pipeline()
+    # downstream_pipeline()
