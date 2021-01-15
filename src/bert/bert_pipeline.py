@@ -32,11 +32,11 @@ def gender_example_creation():
     model = EmbeddingModel("bert-base-uncased", batch_size=BATCHSIZE, device=device)
     for mode in ["train", "test"]:
         for data in ["CoLA", "QNLI", "SST2"]:
-            dataset = select_data_set(data, tokenizer, args.data_path, mode)
+            dataset = select_data_set(data, tokenizer, args.data_dir, mode)
             data_loader = GenericDataLoader(dataset, validation_split=0, batch_size=BATCHSIZE)
 
             result_array_female, result_array_male = male_female_forward_pass(data_loader, model, BATCHSIZE, device)
-            female_male_dataset_creation(result_array_female, result_array_male, args.data_path, data, mode)
+            female_male_dataset_creation(result_array_female, result_array_male, args.data_dir, data, mode)
 
 
 def create_debiased_dataset():
@@ -55,7 +55,7 @@ def create_debiased_dataset():
     full_array_male_test = []
     for data_name in ["CoLA", "QNLI","SST2"]:
         # SST2 has not enough test examples
-        result_array_female, result_array_male = load_from_database(args.data_path, data_name, "train")
+        result_array_female, result_array_male = load_from_database(args.data_dir, data_name, "train")
         full_array_male.append(result_array_male)
         full_array_female.append(result_array_female)
 
@@ -69,7 +69,7 @@ def create_debiased_dataset():
         debias.fit(embeddings, label_index)
         if data_name == "SST2":
             continue
-        result_array_female, result_array_male = load_from_database(args.data_path, data_name, "test")
+        result_array_female, result_array_male = load_from_database(args.data_dir, data_name, "test")
         full_array_female_test.append(result_array_female)
         full_array_male_test.append(result_array_male)
         embeddings_test, label_index_test = prepare_pca_input(result_array_male,
@@ -78,7 +78,7 @@ def create_debiased_dataset():
         print("debias successfull")
         debiased_male = embeddings_debiased[::2]
         debiased_female = embeddings_debiased[1::2]
-        female_male_dataset_creation(debiased_male, debiased_female, data_path=args.data_path, data_name=data_name,
+        female_male_dataset_creation(debiased_male, debiased_female, data_path=args.data_dir, data_name=data_name,
                                      mode="test_debias_{}".format(args.debias_method))
     if args.combine_data:
         full_array_male = np.concatenate(full_array_male)
@@ -96,7 +96,7 @@ def create_debiased_dataset():
         print("debias successfull")
         debiased_male = embeddings_debiased[::2]
         debiased_female = embeddings_debiased[1::2]
-        female_male_dataset_creation(debiased_male, debiased_female, data_path=args.data_path, data_name="full",
+        female_male_dataset_creation(debiased_male, debiased_female, data_path=args.data_dir, data_name="full",
                                      mode="test_debias_{}".format(args.debias_method))
 
 def establish_bias_baseline():
@@ -136,7 +136,7 @@ def establish_bias_baseline():
 
                 for data_set in ["CoLA", "QNLI", "SST2"]:
                     # for all datasets
-                    result_array_female, result_array_male = load_from_database(args.data_path, data_set, "test")
+                    result_array_female, result_array_male = load_from_database(args.data_dir, data_set, "test")
                     full_array_female.append(result_array_female)
                     full_array_male.append(result_array_male)
                 full_array_male = np.concatenate(full_array_male)
@@ -151,7 +151,7 @@ def establish_bias_baseline():
                     distance_metric)] = compute_score.compute_permutation_score(
                     test_type, distance_metric)
 
-                debiased_female, debiased_male = load_from_database(args.data_path, "full",
+                debiased_female, debiased_male = load_from_database(args.data_dir, "full",
                                                                     "test_debias_{}".format(args.debias_method))
 
                 compute_score.read_text_example(debiased_male, debiased_female)
@@ -167,7 +167,7 @@ def establish_bias_baseline():
             else:
                 for data_set in ["CoLA", "QNLI", "SST2"]:
                     # for all datasets
-                    result_array_female, result_array_male = load_from_database(args.data_path, data_set, "train")
+                    result_array_female, result_array_male = load_from_database(args.data_dir, data_set, "train")
 
 
                     compute_score.read_text_example(result_array_male, result_array_female)
@@ -182,7 +182,7 @@ def establish_bias_baseline():
 
                     if not (data_set == "SST2") and (args.debias_method != "none"):
                         # in SST2 test set there are not enough gendered examples
-                        debiased_female, debiased_male = load_from_database(args.data_path, data_set,
+                        debiased_female, debiased_male = load_from_database(args.data_dir, data_set,
                                                                             "test_debias_{}".format(args.debias_method))
 
                         compute_score.read_text_example(debiased_male, debiased_female)
@@ -198,7 +198,7 @@ def establish_bias_baseline():
     result_frame.to_latex("./src/experiments/baseline_metric_{}.tex".format(args.debias_method))
 
 
-def downstream_pipeline():
+def downstream_pipeline(data_name):
     """
     Run the training and evaluation of the downstream tasks and see how the accuracy is influenced by debiasing
     :return:
@@ -221,13 +221,13 @@ def downstream_pipeline():
             full_array_male=[]
             for data_set in ["CoLA", "QNLI", "SST2"]:
                 # for all datasets
-                result_array_female, result_array_male = load_from_database(args.data_path, data_set, "test")
+                result_array_female, result_array_male = load_from_database(args.data_dir, data_set, "test")
                 full_array_female.append(result_array_female)
                 full_array_male.append(result_array_male)
             result_array_male = np.concatenate(full_array_male)
             result_array_female = np.concatenate(full_array_female)
         else:
-            result_array_female, result_array_male = load_from_database(args.data_path, args.data_name, "train")
+            result_array_female, result_array_male = load_from_database(args.data_dir, data_name, "train")
         embeddings, label_index = prepare_pca_input(result_array_male, result_array_female)
         debias.fit(embeddings, label_index)
         debias.transfer_to_torch(device)
@@ -238,9 +238,9 @@ def downstream_pipeline():
                                 debiasing_model=debias)
 
     # Compute embeddings for the train dataset
-    dataset_train = select_data_set_standard(data_name=args.data_name, tokenizer=tokenizer, data_path=args.data_path,
+    dataset_train = select_data_set_standard(data_name=data_name, tokenizer=tokenizer, data_path=args.data_dir,
                                              mode="train")
-    dataset_test = select_data_set_standard(data_name=args.data_name, tokenizer=tokenizer, data_path=args.data_path,
+    dataset_test = select_data_set_standard(data_name=data_name, tokenizer=tokenizer, data_path=args.data_dir,
                                             mode="dev")
 
     data_loader = GenericDataLoader(dataset_train, validation_data=dataset_test, batch_size=BATCHSIZE)
@@ -252,21 +252,25 @@ def downstream_pipeline():
 if __name__ == "__main__":
     # parse arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data-path', default="./data/", type=str, required=False)
-    parser.add_argument('--data-name', default="CoLA", type=str, required=False)
-    parser.add_argument('--out-path', default="./data/", type=str, required=False)
+    parser.add_argument('--data_dir', default="./data/", type=str, required=False)
+    parser.add_argument('--data_name', default="CoLA", type=str, required=False)
+    parser.add_argument('--out_path', default="./data/", type=str, required=False)
     parser.add_argument('--recompute', action="store_true")
-    parser.add_argument('--debias-method', default="none", type=str, required=False)
+    parser.add_argument('--debias_method', default="none", type=str, required=False)
     parser.add_argument('--combine_data', action="store_true")
     args = parser.parse_args()
 
     # Run
     #   1. Download data by running src/experiments/download_data.py
     #   2. Create Embeddings for sentences that have a gender dimension
-    # gender_example_creation()
+    gender_example_creation()
     # 3. Create the dataset after applying debiasing approaches to gendered sentences
-    # create_debiased_dataset()
+    create_debiased_dataset()
     #   4. Evaluate SEAT before and after Debiasing was applied
-    # establish_bias_baseline()
+    establish_bias_baseline()
     #  5. Compute downstream performance with debiasing or without debiasing
-    downstream_pipeline()
+    if args.combine_data:
+        for data_name in ["CoLA", "SST2"]:
+            downstream_pipeline(data_name)
+    else:
+        downstream_pipeline(args.data_name)

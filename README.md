@@ -29,18 +29,17 @@ The directory `notebook` can be used to keep random jupyter notebook used during
 ```bash
 # TODO
 # 1. download dataset to the environment
-command1
+python ./src/experiments/download_data.py --data_dir {your_data_path} --tasks CoLA,QNLI,SST
 # 2. generate embeddings of defining sets and test data
-command2
 # 3. debias the test data
-command3
 # 4. evaluate the quality of debiasing
-command4
+# 5. train the downstream task
+python ./src/bert/bert_pipeline.py --data_dir {your_data_path} --out_path {path_to_save_embeddings} --combine_data
 ```
-
+The flag combine data results in combining all available datasets (CoLA, SST2, QNLI) to create the defining sets for debiasing and for metric calculation. Without the flag --data_name should be specified to run the procedure for a specific dataset. 
 ### How to Run on Leonhard Cluster
 
 ```bash
 # TODO
-command5
+bsub -n 4 -W 24:00 "rusage[mem=8048,ngpus_excl_p=1]" python ./src/bert/bert_pipeline.py --data_dir {your_data_path} --out_path {path_to_save_embeddings} --combine_data
 ```
