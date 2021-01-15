@@ -31,7 +31,7 @@ def gender_example_creation():
     tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
     model = EmbeddingModel("bert-base-uncased", batch_size=BATCHSIZE, device=device)
     for mode in ["train", "test"]:
-        for data in ["CoLA", "QNLI", "SST2"]:
+        for data in ["SST2","CoLA", "QNLI"]:
             dataset = select_data_set(data, tokenizer, args.data_dir, mode)
             data_loader = GenericDataLoader(dataset, validation_split=0, batch_size=BATCHSIZE)
 
