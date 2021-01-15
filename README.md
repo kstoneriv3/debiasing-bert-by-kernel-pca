@@ -42,5 +42,5 @@ The argument --debias_method allows you to choose which debiasing method is used
 
 ```bash
 # TODO
-bsub -n 4 -W 24:00 "rusage[mem=8048,ngpus_excl_p=1]" python ./src/bert/bert_pipeline.py --data_dir {your_data_path} --out_path {path_to_save_embeddings} --combine_data
+bsub -n 4 -W 24:00 "rusage[mem=8048,ngpus_excl_p=1]" python ./src/bert/bert_pipeline.py --data_dir {your_data_path} --out_path {path_to_save_embeddings} --combine_data --debias_mode kpca
 ```
